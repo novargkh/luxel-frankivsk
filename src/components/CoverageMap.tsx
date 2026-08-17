@@ -22,6 +22,7 @@ export type CoveragePoint = {
   label: string;
   address: string;
   subtitle?: string;
+  workingHours?: string;
 };
 
 function FitBounds({ points }: { points: CoveragePoint[] }) {
@@ -64,6 +65,7 @@ export default function CoverageMap({
               <div className="text-sm font-medium">{p.label}</div>
               {p.subtitle && <div className="text-xs">{p.subtitle}</div>}
               <div className="text-xs">{p.address}</div>
+              {p.workingHours && <div className="text-xs text-slate-500">{p.workingHours}</div>}
             </Popup>
           </Marker>
         ))}

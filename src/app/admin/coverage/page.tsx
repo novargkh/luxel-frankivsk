@@ -22,6 +22,7 @@ type Shop = {
   phone: string | null;
   lat: number | null;
   lng: number | null;
+  workingHours: string | null;
   user: { name: string; company: string | null; email: string };
   _count: { orders: number };
 };
@@ -41,6 +42,7 @@ function downloadCsv(shops: Shop[]) {
     "Магазин",
     "Адреса",
     "Телефон",
+    "Години роботи",
     "Широта",
     "Довгота",
     "Кількість замовлень",
@@ -51,6 +53,7 @@ function downloadCsv(shops: Shop[]) {
     s.name,
     s.address,
     s.phone ?? "",
+    s.workingHours ?? "",
     s.lat ?? "",
     s.lng ?? "",
     s._count.orders,
@@ -93,6 +96,7 @@ export default function CoveragePage() {
           label: s.name,
           address: s.address,
           subtitle: s.user.company ?? s.user.name,
+          workingHours: s.workingHours ?? undefined,
         })),
     [shops]
   );
@@ -136,6 +140,7 @@ export default function CoveragePage() {
                     <th className="text-left px-3 py-2 font-medium">Клієнт</th>
                     <th className="text-left px-3 py-2 font-medium">Магазин</th>
                     <th className="text-left px-3 py-2 font-medium">Адреса</th>
+                    <th className="text-left px-3 py-2 font-medium">Години роботи</th>
                     <th className="text-left px-3 py-2 font-medium">Геомітка</th>
                     <th className="text-left px-3 py-2 font-medium">Замовлень</th>
                   </tr>
@@ -148,6 +153,7 @@ export default function CoveragePage() {
                       </td>
                       <td className="px-3 py-2 text-slate-600">{s.name}</td>
                       <td className="px-3 py-2 text-slate-600">{s.address}</td>
+                      <td className="px-3 py-2 text-slate-600">{s.workingHours ?? "—"}</td>
                       <td className="px-3 py-2">
                         {s.lat != null && s.lng != null ? (
                           <span className="text-xs text-emerald-600">є</span>

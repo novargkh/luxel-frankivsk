@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import { useCart } from "@/lib/cart";
+import { extractAttributes, similarityScore, type ProductAttributes } from "@/lib/similarity";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -36,10 +37,35 @@ export default function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [promoOnly, setPromoOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
+  const [baseFilter, setBaseFilter] = useState("");
+  const [priceMin, setPriceMin] = useState("");
+  const [priceMax, setPriceMax] = useState("");
+  const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "name-asc">(
+    "default"
+  );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [quickView, setQuickView] = useState<Product | null>(null);
 
   const { cart, setQty, addOne } = useCart();
+
+  // Filter bar sticks right below the navbar; the navbar's own height is
+  // dynamic (it wraps onto multiple lines on narrow screens), so it's
+  // measured live instead of hard-coded.
+  const navRef = useRef<HTMLDivElement>(null);
+  const [navHeight, setNavHeight] = useState(0);
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const update = () => setNavHeight(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    window.addEventListener("resize", update);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", update);
+    };
+  }, []);
 
   async function loadData() {
     setLoading(true);
@@ -69,8 +95,28 @@ export default function CatalogPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
   }, [products]);
 
+  // Regex-extracted attributes (series, article, цоколь, колба, etc.) per
+  // product — used both for smarter "similar products" ranking and to power
+  // the цоколь filter dropdown below.
+  const attributesById = useMemo(() => {
+    const map = new Map<string, ProductAttributes>();
+    for (const p of products) map.set(p.id, extractAttributes(p.name));
+    return map;
+  }, [products]);
+
+  const baseOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of products) {
+      const base = attributesById.get(p.id)?.base;
+      if (base) set.add(base);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
+  }, [products, attributesById]);
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const min = priceMin.trim() === "" ? null : Number(priceMin);
+    const max = priceMax.trim() === "" ? null : Number(priceMax);
     return products.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
         return false;
@@ -78,21 +124,60 @@ export default function CatalogPage() {
       if (categoryFilter && (p.category || UNCATEGORIZED) !== categoryFilter) return false;
       if (promoOnly && !p.isPromo) return false;
       if (inStockOnly && p.stock <= 0) return false;
+      if (baseFilter && attributesById.get(p.id)?.base !== baseFilter) return false;
+      if (min != null && !Number.isNaN(min) && p.price < min) return false;
+      if (max != null && !Number.isNaN(max) && p.price > max) return false;
       return true;
     });
-  }, [products, search, categoryFilter, promoOnly, inStockOnly]);
+  }, [products, search, categoryFilter, promoOnly, inStockOnly, baseFilter, priceMin, priceMax, attributesById]);
+
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    switch (sortOrder) {
+      case "price-asc":
+        arr.sort((a, b) => a.price - b.price);
+        break;
+      case "price-desc":
+        arr.sort((a, b) => b.price - a.price);
+        break;
+      case "name-asc":
+        arr.sort((a, b) => a.name.localeCompare(b.name, "uk"));
+        break;
+      default:
+        break;
+    }
+    return arr;
+  }, [filtered, sortOrder]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Product[]>();
-    for (const p of filtered) {
+    for (const p of sorted) {
       const key = p.category || UNCATEGORIZED;
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(p);
     }
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "uk"));
-  }, [filtered]);
+  }, [sorted]);
 
-  const isFiltering = search.trim().length > 0 || !!categoryFilter || promoOnly || inStockOnly;
+  const isFiltering =
+    search.trim().length > 0 ||
+    !!categoryFilter ||
+    promoOnly ||
+    inStockOnly ||
+    !!baseFilter ||
+    priceMin.trim() !== "" ||
+    priceMax.trim() !== "";
+
+  function resetFilters() {
+    setSearch("");
+    setCategoryFilter("");
+    setPromoOnly(false);
+    setInStockOnly(false);
+    setBaseFilter("");
+    setPriceMin("");
+    setPriceMax("");
+    setSortOrder("default");
+  }
 
   function toggleCategory(cat: string) {
     setExpanded((prev) => {
@@ -105,7 +190,20 @@ export default function CatalogPage() {
 
   function similarProducts(p: Product) {
     const cat = p.category || UNCATEGORIZED;
-    return products.filter((x) => x.id !== p.id && (x.category || UNCATEGORIZED) === cat).slice(0, 12);
+    const baseAttrs = attributesById.get(p.id) ?? extractAttributes(p.name);
+    const candidates = products.filter((x) => x.id !== p.id && (x.category || UNCATEGORIZED) === cat);
+    const scored = candidates.map((c) => ({
+      product: c,
+      score: similarityScore(baseAttrs, attributesById.get(c.id) ?? extractAttributes(c.name)),
+    }));
+    // Best attribute match first (series/article/цоколь/колба/etc.); when
+    // nothing matches (score 0 for everyone) this degrades gracefully to
+    // the old category-only ordering, tie-broken by price proximity.
+    scored.sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return Math.abs(a.product.price - p.price) - Math.abs(b.product.price - p.price);
+    });
+    return scored.slice(0, 12).map((s) => s.product);
   }
 
   const cartCount = Object.keys(cart).length;
@@ -122,7 +220,9 @@ export default function CatalogPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
+      <div ref={navRef} className="sticky top-0 z-20">
+        <Navbar />
+      </div>
 
       <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1 pb-24">
         {profileIncomplete && (
@@ -162,38 +262,96 @@ export default function CatalogPage() {
 
         <h1 className="text-lg font-semibold text-slate-900 mb-4">Каталог товарів</h1>
 
-        {/* Search + filters */}
-        <div className="mb-5 flex flex-col sm:flex-row gap-2 sm:items-center flex-wrap">
-          <input
-            placeholder="Пошук товару за назвою чи описом..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 min-w-[220px] border border-slate-300 rounded-lg px-3 py-2 text-sm"
-          />
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-          >
-            <option value="">Усі категорії</option>
-            {categories.map((c) => (
-              <option key={c} value={c}>
-                {c}
-              </option>
-            ))}
-          </select>
-          <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
-            <input type="checkbox" checked={promoOnly} onChange={(e) => setPromoOnly(e.target.checked)} />
-            Тільки акційні
-          </label>
-          <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
+        {/* Search + filters — sticky under the navbar so it stays reachable
+            while scrolling through a long, expanded catalog. */}
+        <div
+          className="sticky z-10 -mx-4 px-4 py-3 mb-5 bg-white/95 backdrop-blur-sm border-b border-slate-100"
+          style={{ top: navHeight }}
+        >
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center flex-wrap">
             <input
-              type="checkbox"
-              checked={inStockOnly}
-              onChange={(e) => setInStockOnly(e.target.checked)}
+              placeholder="Пошук товару за назвою чи описом..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="flex-1 min-w-[220px] border border-slate-300 rounded-lg px-3 py-2 text-sm"
             />
-            Тільки в наявності
-          </label>
+            <select
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
+            >
+              <option value="">Усі категорії</option>
+              {categories.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+            {baseOptions.length > 1 && (
+              <select
+                value={baseFilter}
+                onChange={(e) => setBaseFilter(e.target.value)}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
+              >
+                <option value="">Усі цоколі</option>
+                {baseOptions.map((b) => (
+                  <option key={b} value={b}>
+                    Цоколь {b}
+                  </option>
+                ))}
+              </select>
+            )}
+            <select
+              value={sortOrder}
+              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
+            >
+              <option value="default">Сортування: за замовчуванням</option>
+              <option value="price-asc">Ціна: від дешевих</option>
+              <option value="price-desc">Ціна: від дорогих</option>
+              <option value="name-asc">За назвою (А-Я)</option>
+            </select>
+            <div className="flex gap-2 w-full sm:w-auto">
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Ціна від"
+                value={priceMin}
+                onChange={(e) => setPriceMin(e.target.value)}
+                className="w-1/2 sm:w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <input
+                type="number"
+                min={0}
+                inputMode="numeric"
+                placeholder="Ціна до"
+                value={priceMax}
+                onChange={(e) => setPriceMax(e.target.value)}
+                className="w-1/2 sm:w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
+            <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
+              <input type="checkbox" checked={promoOnly} onChange={(e) => setPromoOnly(e.target.checked)} />
+              Тільки акційні
+            </label>
+            <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
+              <input
+                type="checkbox"
+                checked={inStockOnly}
+                onChange={(e) => setInStockOnly(e.target.checked)}
+              />
+              Тільки в наявності
+            </label>
+            {isFiltering && (
+              <button
+                onClick={resetFilters}
+                className="text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-2 whitespace-nowrap"
+              >
+                Скинути фільтри
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -288,68 +446,94 @@ function ProductRow({
   onQty: (q: number) => void;
   onOpen: () => void;
 }) {
-  return (
-    <div className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition">
+  const qtyControls = (
+    <div className="shrink-0 flex items-center gap-1">
+      <input
+        type="number"
+        min={0}
+        max={product.stock}
+        disabled={product.stock <= 0}
+        value={qty}
+        onChange={(e) => onQty(Number(e.target.value))}
+        className="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
+      />
       <button
-        onClick={onOpen}
-        className="shrink-0 w-14 h-14 rounded-lg bg-slate-100 overflow-hidden relative"
+        disabled={product.stock <= 0}
+        onClick={() => onQty(qty + 1)}
+        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 hover:bg-slate-100 disabled:opacity-40"
       >
-        {product.images[0] ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={product.images[0].url}
-            alt={product.name}
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
-            немає фото
-          </div>
-        )}
-        {product.isPromo && (
-          <span className="absolute -top-1 -left-1 bg-brand text-white text-[9px] px-1 rounded">
-            %
-          </span>
-        )}
+        +1
       </button>
+    </div>
+  );
 
-      <button onClick={onOpen} className="flex-1 min-w-0 text-left">
-        <div className="text-sm font-medium text-slate-900 truncate">{product.name}</div>
-        {product.description && (
-          <div className="text-xs text-slate-500 truncate">{product.description}</div>
-        )}
-        {product.isPromo && product.promoText && (
-          <div className="text-xs text-brand truncate">{product.promoText}</div>
-        )}
-      </button>
-
-      <div className="hidden sm:block text-xs text-slate-400 w-24 shrink-0 text-right">
-        {product.stock > 0 ? `Залишок: ${product.stock}` : (
-          <span className="text-slate-400">Немає в наявності</span>
-        )}
-      </div>
-
-      <div className="text-sm font-semibold text-slate-900 w-24 shrink-0 text-right">
-        {product.price.toLocaleString("uk-UA")} ₴
-      </div>
-
-      <div className="shrink-0 flex items-center gap-1">
-        <input
-          type="number"
-          min={0}
-          max={product.stock}
-          disabled={product.stock <= 0}
-          value={qty}
-          onChange={(e) => onQty(Number(e.target.value))}
-          className="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
-        />
+  return (
+    <div className="px-4 py-3 hover:bg-slate-50 transition">
+      {/* Image + name always share the top line, full width, so the name
+          gets real space instead of being squeezed by price/qty columns. */}
+      <div className="flex items-center gap-3">
         <button
-          disabled={product.stock <= 0}
-          onClick={() => onQty(qty + 1)}
-          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 hover:bg-slate-100 disabled:opacity-40"
+          onClick={onOpen}
+          className="shrink-0 w-14 h-14 rounded-lg bg-slate-100 overflow-hidden relative"
         >
-          +1
+          {product.images[0] ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={product.images[0].url}
+              alt={product.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
+              немає фото
+            </div>
+          )}
+          {product.isPromo && (
+            <span className="absolute -top-1 -left-1 bg-brand text-white text-[9px] px-1 rounded">
+              %
+            </span>
+          )}
         </button>
+
+        <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+          <div className="text-sm font-medium text-slate-900 line-clamp-2 sm:truncate">
+            {product.name}
+          </div>
+          {product.description && (
+            <div className="hidden sm:block text-xs text-slate-500 truncate">
+              {product.description}
+            </div>
+          )}
+          {product.isPromo && product.promoText && (
+            <div className="hidden sm:block text-xs text-brand truncate">{product.promoText}</div>
+          )}
+        </button>
+
+        <div className="hidden sm:block text-xs text-slate-400 w-24 shrink-0 text-right">
+          {product.stock > 0 ? `Залишок: ${product.stock}` : (
+            <span className="text-slate-400">Немає в наявності</span>
+          )}
+        </div>
+
+        <div className="hidden sm:block text-sm font-semibold text-slate-900 w-24 shrink-0 text-right">
+          {product.price.toLocaleString("uk-UA")} ₴
+        </div>
+
+        <div className="hidden sm:flex">{qtyControls}</div>
+      </div>
+
+      {/* Price + stock + qty move to a second line on mobile so the row
+          never forces horizontal scrolling on narrow screens. */}
+      <div className="flex sm:hidden items-center justify-between gap-2 mt-2 pl-[68px]">
+        <div className="flex flex-col">
+          <span className="text-sm font-semibold text-slate-900">
+            {product.price.toLocaleString("uk-UA")} ₴
+          </span>
+          <span className="text-xs text-slate-400">
+            {product.stock > 0 ? `Залишок: ${product.stock}` : "Немає в наявності"}
+          </span>
+        </div>
+        {qtyControls}
       </div>
     </div>
   );

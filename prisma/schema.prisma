@@ -51,6 +51,7 @@ model Shop {
   phone         String?
   lat           Float?
   lng           Float?
+  workingHours  String?
   createdAt     DateTime @default(now())
 
   orders     Order[]

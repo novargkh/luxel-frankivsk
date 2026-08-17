@@ -1,6 +1,7 @@
 "use client";
 
-import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import { useEffect, useRef } from "react";
+import { MapContainer, TileLayer, Marker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -23,16 +24,46 @@ function ClickHandler({ onPick }: { onPick: (lat: number, lng: number) => void }
   return null;
 }
 
+// react-leaflet only honors the `center` prop at mount — it deliberately
+// doesn't fight the user's own panning/zooming afterwards. To jump the map
+// to a freshly-geocoded address (an external change, not a user click) we
+// need to imperatively call map.setView. `recenterKey` is bumped by the
+// parent only when it wants to force that jump (e.g. after geocoding
+// resolves), so a plain click-driven lat/lng update doesn't yank the view.
+function Recenter({
+  lat,
+  lng,
+  recenterKey,
+}: {
+  lat: number;
+  lng: number;
+  recenterKey: number;
+}) {
+  const map = useMap();
+  const prevKey = useRef(recenterKey);
+  useEffect(() => {
+    if (recenterKey !== prevKey.current) {
+      prevKey.current = recenterKey;
+      map.setView([lat, lng], 15);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recenterKey]);
+  return null;
+}
+
 export default function MapPicker({
   lat,
   lng,
   onChange,
   height = 260,
+  recenterKey = 0,
 }: {
   lat?: number | null;
   lng?: number | null;
   onChange: (lat: number, lng: number) => void;
   height?: number;
+  /** Bump this (e.g. increment a counter) to force the map to jump to lat/lng — used after geocoding an address. */
+  recenterKey?: number;
 }) {
   const hasPoint = typeof lat === "number" && typeof lng === "number";
   const center: [number, number] = hasPoint ? [lat as number, lng as number] : KYIV;
@@ -54,6 +85,9 @@ export default function MapPicker({
           />
           <ClickHandler onPick={onChange} />
           {hasPoint && <Marker position={[lat as number, lng as number]} icon={markerIcon} />}
+          {hasPoint && (
+            <Recenter lat={lat as number} lng={lng as number} recenterKey={recenterKey} />
+          )}
         </MapContainer>
       </div>
       <p className="text-xs text-slate-400 mt-1">

@@ -25,13 +25,14 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { name, address, contactPerson, phone, lat, lng } = body as {
+  const { name, address, contactPerson, phone, lat, lng, workingHours } = body as {
     name: string;
     address: string;
     contactPerson?: string;
     phone?: string;
     lat?: number | null;
     lng?: number | null;
+    workingHours?: string;
   };
 
   if (!name || !address) {
@@ -50,6 +51,7 @@ export async function POST(req: Request) {
       phone: phone || undefined,
       lat: lat ?? undefined,
       lng: lng ?? undefined,
+      workingHours: workingHours || undefined,
     },
   });
 

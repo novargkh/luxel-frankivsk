@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Navbar from "@/components/Navbar";
 
@@ -22,6 +22,7 @@ type Shop = {
   phone: string | null;
   lat: number | null;
   lng: number | null;
+  workingHours: string | null;
 };
 
 const emptyShopForm = {
@@ -30,6 +31,7 @@ const emptyShopForm = {
   address: "",
   contactPerson: "",
   phone: "",
+  workingHours: "",
   lat: null as number | null,
   lng: null as number | null,
 };
@@ -46,6 +48,47 @@ export default function ProfilePage() {
   const [editingShop, setEditingShop] = useState(false);
   const [savingShop, setSavingShop] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Auto-geocoding: as the user types an address, look it up and drop the
+  // pin automatically (they can still fine-tune by clicking the map).
+  const [geocoding, setGeocoding] = useState(false);
+  const [geocodeStatus, setGeocodeStatus] = useState<"idle" | "ok" | "empty" | "error">("idle");
+  const [recenterKey, setRecenterKey] = useState(0);
+  const skipNextGeocodeRef = useRef(false);
+
+  useEffect(() => {
+    if (!editingShop) return;
+    const address = shopForm.address.trim();
+    if (address.length < 5) {
+      setGeocodeStatus("idle");
+      return;
+    }
+    if (skipNextGeocodeRef.current) {
+      skipNextGeocodeRef.current = false;
+      return;
+    }
+    const handle = setTimeout(async () => {
+      setGeocoding(true);
+      try {
+        const res = await fetch(`/api/geocode?q=${encodeURIComponent(address)}`);
+        const data = await res.json();
+        const first = data.results?.[0];
+        if (first) {
+          setShopForm((f) => (f.address.trim() === address ? { ...f, lat: first.lat, lng: first.lng } : f));
+          setRecenterKey((k) => k + 1);
+          setGeocodeStatus("ok");
+        } else {
+          setGeocodeStatus("empty");
+        }
+      } catch {
+        setGeocodeStatus("error");
+      } finally {
+        setGeocoding(false);
+      }
+    }, 700);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shopForm.address, editingShop]);
 
   async function load() {
     setLoading(true);
@@ -79,16 +122,23 @@ export default function ProfilePage() {
 
   function startAddShop() {
     setShopForm(emptyShopForm);
+    setGeocodeStatus("idle");
     setEditingShop(true);
   }
 
   function startEditShop(s: Shop) {
+    // The address is already set (and presumably already has a fine-tuned
+    // pin) — skip the very next auto-geocode pass so opening "Змінити"
+    // doesn't immediately jump/move an already-correct marker.
+    skipNextGeocodeRef.current = true;
+    setGeocodeStatus("idle");
     setShopForm({
       id: s.id,
       name: s.name,
       address: s.address,
       contactPerson: s.contactPerson ?? "",
       phone: s.phone ?? "",
+      workingHours: s.workingHours ?? "",
       lat: s.lat,
       lng: s.lng,
     });
@@ -104,6 +154,7 @@ export default function ProfilePage() {
       address: shopForm.address,
       contactPerson: shopForm.contactPerson || undefined,
       phone: shopForm.phone || undefined,
+      workingHours: shopForm.workingHours || undefined,
       lat: shopForm.lat,
       lng: shopForm.lng,
     };
@@ -234,28 +285,54 @@ export default function ProfilePage() {
                 />
               </div>
               <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                <input
-                  placeholder="Адреса"
-                  value={shopForm.address}
-                  onChange={(e) => setShopForm((f) => ({ ...f, address: e.target.value }))}
-                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                />
+                <div>
+                  <input
+                    placeholder="Адреса"
+                    value={shopForm.address}
+                    onChange={(e) => setShopForm((f) => ({ ...f, address: e.target.value }))}
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  />
+                  <p className="text-xs mt-1 h-4">
+                    {geocoding && <span className="text-slate-400">Пошук на карті...</span>}
+                    {!geocoding && geocodeStatus === "ok" && (
+                      <span className="text-emerald-600">Адресу знайдено на карті</span>
+                    )}
+                    {!geocoding && geocodeStatus === "empty" && (
+                      <span className="text-amber-600">
+                        Адресу не знайдено — поставте мітку вручну
+                      </span>
+                    )}
+                    {!geocoding && geocodeStatus === "error" && (
+                      <span className="text-amber-600">Не вдалося визначити координати</span>
+                    )}
+                  </p>
+                </div>
                 <input
                   placeholder="Телефон"
                   value={shopForm.phone}
                   onChange={(e) => setShopForm((f) => ({ ...f, phone: e.target.value }))}
-                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                  className="border border-slate-300 rounded-lg px-3 py-2 text-sm h-fit"
+                />
+              </div>
+
+              <div className="mb-3">
+                <input
+                  placeholder="Години роботи (напр. Пн-Пт 9:00–18:00, Сб 10:00–15:00)"
+                  value={shopForm.workingHours}
+                  onChange={(e) => setShopForm((f) => ({ ...f, workingHours: e.target.value }))}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="mb-3">
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Геомітка на карті
+                  Геомітка на карті — підбирається автоматично за адресою, або клацніть вручну
                 </label>
                 <MapPicker
                   lat={shopForm.lat}
                   lng={shopForm.lng}
                   onChange={(lat, lng) => setShopForm((f) => ({ ...f, lat, lng }))}
+                  recenterKey={recenterKey}
                 />
               </div>
 
@@ -299,6 +376,11 @@ export default function ProfilePage() {
                         {s.contactPerson}
                         {s.contactPerson && s.phone ? " · " : ""}
                         {s.phone}
+                      </div>
+                    )}
+                    {s.workingHours && (
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Години роботи: {s.workingHours}
                       </div>
                     )}
                     <div className="text-xs mt-1">

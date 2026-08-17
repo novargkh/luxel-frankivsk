@@ -24,13 +24,14 @@ export async function PATCH(
   }
 
   const body = await req.json();
-  const { name, address, contactPerson, phone, lat, lng } = body as {
+  const { name, address, contactPerson, phone, lat, lng, workingHours } = body as {
     name?: string;
     address?: string;
     contactPerson?: string;
     phone?: string;
     lat?: number | null;
     lng?: number | null;
+    workingHours?: string;
   };
 
   const data: Record<string, unknown> = {};
@@ -40,6 +41,7 @@ export async function PATCH(
   if (phone !== undefined) data.phone = phone;
   if (lat !== undefined) data.lat = lat;
   if (lng !== undefined) data.lng = lng;
+  if (workingHours !== undefined) data.workingHours = workingHours;
 
   const shop = await prisma.shop.update({ where: { id }, data });
   return NextResponse.json(shop);
