@@ -45,6 +45,10 @@ export default function CatalogPage() {
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [quickView, setQuickView] = useState<Product | null>(null);
+  // On mobile the extra filter controls (everything but search) live in a
+  // collapsible panel so they don't permanently eat screen space in the
+  // sticky bar — picking a value applies it and closes the panel.
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const { cart, setQty, addOne } = useCart();
 
@@ -179,6 +183,19 @@ export default function CatalogPage() {
     setSortOrder("default");
   }
 
+  // Count of "extra" filters (everything but search) — shown as a badge on
+  // the mobile "Фільтри" toggle so it's clear something is active even
+  // while the panel is collapsed.
+  const activeExtraFilterCount = [
+    !!categoryFilter,
+    !!baseFilter,
+    promoOnly,
+    inStockOnly,
+    priceMin.trim() !== "",
+    priceMax.trim() !== "",
+    sortOrder !== "default",
+  ].filter(Boolean).length;
+
   function toggleCategory(cat: string) {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -263,18 +280,36 @@ export default function CatalogPage() {
         <h1 className="text-lg font-semibold text-slate-900 mb-4">Каталог товарів</h1>
 
         {/* Search + filters — sticky under the navbar so it stays reachable
-            while scrolling through a long, expanded catalog. */}
+            while scrolling through a long, expanded catalog. On mobile the
+            extra filters collapse into a toggled panel so they don't
+            permanently eat screen space. */}
         <div
           className="sticky z-10 -mx-4 px-4 py-3 mb-5 bg-white/95 backdrop-blur-sm border-b border-slate-100"
           style={{ top: navHeight }}
         >
-          <div className="flex flex-col sm:flex-row gap-2 sm:items-center flex-wrap">
+          {/* Row 1: search (always visible) + mobile filter toggle */}
+          <div className="flex gap-2 items-center">
             <input
               placeholder="Пошук товару за назвою чи описом..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-[220px] border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm"
             />
+            <button
+              onClick={() => setMobileFiltersOpen((v) => !v)}
+              className="sm:hidden relative shrink-0 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 whitespace-nowrap"
+            >
+              Фільтри
+              {activeExtraFilterCount > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-brand text-white text-[10px] leading-[1.1rem] text-center">
+                  {activeExtraFilterCount}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* Desktop: full filter row, always visible (unchanged) */}
+          <div className="hidden sm:flex gap-2 items-center flex-wrap mt-2">
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value)}
@@ -352,6 +387,120 @@ export default function CatalogPage() {
               </button>
             )}
           </div>
+
+          {/* Mobile: collapsible filter panel — picking a select/checkbox
+              value applies it immediately and closes the panel; price
+              inputs stay open while typing (closed via "Готово"/reset). */}
+          {mobileFiltersOpen && (
+            <div className="sm:hidden mt-2 border border-slate-200 rounded-lg p-3 bg-white space-y-2">
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setMobileFiltersOpen(false);
+                }}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">Усі категорії</option>
+                {categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+              {baseOptions.length > 1 && (
+                <select
+                  value={baseFilter}
+                  onChange={(e) => {
+                    setBaseFilter(e.target.value);
+                    setMobileFiltersOpen(false);
+                  }}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Усі цоколі</option>
+                  {baseOptions.map((b) => (
+                    <option key={b} value={b}>
+                      Цоколь {b}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <select
+                value={sortOrder}
+                onChange={(e) => {
+                  setSortOrder(e.target.value as typeof sortOrder);
+                  setMobileFiltersOpen(false);
+                }}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="default">Сортування: за замовчуванням</option>
+                <option value="price-asc">Ціна: від дешевих</option>
+                <option value="price-desc">Ціна: від дорогих</option>
+                <option value="name-asc">За назвою (А-Я)</option>
+              </select>
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  placeholder="Ціна від"
+                  value={priceMin}
+                  onChange={(e) => setPriceMin(e.target.value)}
+                  className="w-1/2 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                />
+                <input
+                  type="number"
+                  min={0}
+                  inputMode="numeric"
+                  placeholder="Ціна до"
+                  value={priceMax}
+                  onChange={(e) => setPriceMax(e.target.value)}
+                  className="w-1/2 border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={promoOnly}
+                  onChange={(e) => {
+                    setPromoOnly(e.target.checked);
+                    setMobileFiltersOpen(false);
+                  }}
+                />
+                Тільки акційні
+              </label>
+              <label className="flex items-center gap-1.5 text-sm text-slate-700">
+                <input
+                  type="checkbox"
+                  checked={inStockOnly}
+                  onChange={(e) => {
+                    setInStockOnly(e.target.checked);
+                    setMobileFiltersOpen(false);
+                  }}
+                />
+                Тільки в наявності
+              </label>
+              <div className="flex gap-2 pt-1">
+                {isFiltering && (
+                  <button
+                    onClick={() => {
+                      resetFilters();
+                      setMobileFiltersOpen(false);
+                    }}
+                    className="flex-1 text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-2"
+                  >
+                    Скинути
+                  </button>
+                )}
+                <button
+                  onClick={() => setMobileFiltersOpen(false)}
+                  className="flex-1 bg-brand text-white text-sm rounded-lg px-3 py-2 hover:bg-brand-dark"
+                >
+                  Готово
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {loading ? (
