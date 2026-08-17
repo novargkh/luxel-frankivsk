@@ -42,6 +42,10 @@ export default function AdminProductsPage() {
   const [stockDrafts, setStockDrafts] = useState<Record<string, string>>({});
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [recategorizing, setRecategorizing] = useState(false);
+  const [recategorizeMsg, setRecategorizeMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null
+  );
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
 
@@ -195,6 +199,34 @@ export default function AdminProductsPage() {
     }
   }
 
+  async function recategorize() {
+    setRecategorizing(true);
+    setRecategorizeMsg(null);
+    try {
+      const res = await fetch("/api/admin/recategorize", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setRecategorizeMsg({ type: "error", text: data.error ?? "Не вдалося оновити категорії" });
+        return;
+      }
+      const parts = [`Оновлено товарів: ${data.updated}`];
+      const byCat = data.byCategory as Record<string, number>;
+      if (byCat && Object.keys(byCat).length > 0) {
+        parts.push(
+          Object.entries(byCat)
+            .map(([cat, n]) => `${cat}: ${n}`)
+            .join(", ")
+        );
+      }
+      setRecategorizeMsg({ type: "ok", text: parts.join(" — ") });
+      load();
+    } catch {
+      setRecategorizeMsg({ type: "error", text: "Не вдалося з'єднатися з сервером" });
+    } finally {
+      setRecategorizing(false);
+    }
+  }
+
   async function saveStock(id: string) {
     const value = stockDrafts[id];
     if (value === undefined) return;
@@ -226,6 +258,14 @@ export default function AdminProductsPage() {
               {syncing ? "Оновлення..." : "Оновити з luxel.ua"}
             </button>
             <button
+              onClick={recategorize}
+              disabled={recategorizing}
+              title="Розкладає товари з існуючих великих категорій (LED Освітлення, Електрофурнітура) по вужчих: Прожектори, Світильники лінійні, Розетки"
+              className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              {recategorizing ? "Оновлення..." : "Оновити категорії"}
+            </button>
+            <button
               onClick={startCreate}
               className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark"
             >
@@ -243,6 +283,18 @@ export default function AdminProductsPage() {
             }`}
           >
             {syncMsg.text}
+          </div>
+        )}
+
+        {recategorizeMsg && (
+          <div
+            className={`mb-4 text-sm rounded-lg px-3 py-2 ${
+              recategorizeMsg.type === "ok"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-600"
+            }`}
+          >
+            {recategorizeMsg.text}
           </div>
         )}
 

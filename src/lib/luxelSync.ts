@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { refineCategory } from "@/lib/categorize";
 
 // Syncs new products from luxel.ua into the local catalog.
 //
@@ -142,7 +143,7 @@ export async function syncFromLuxel(): Promise<LuxelSyncResult> {
           return;
         }
         try {
-          const category = categoryFromUrl(p.url);
+          const category = refineCategory(p.name, categoryFromUrl(p.url));
           await prisma.product.create({
             data: {
               name: p.name,

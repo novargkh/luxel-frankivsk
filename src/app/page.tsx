@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
 import { extractAttributes, similarityScore, type ProductAttributes } from "@/lib/similarity";
 
@@ -26,6 +27,19 @@ type Shop = { id: string; name: string; address: string };
 
 const UNCATEGORIZED = "Інше";
 
+function StockBadge({ stock }: { stock: number }) {
+  const inStock = stock > 0;
+  return (
+    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
+      <span
+        className={`inline-block w-1.5 h-1.5 rounded-full ${inStock ? "bg-emerald-500" : "bg-slate-300"}`}
+      />
+      {inStock ? "В наявності" : "Немає в наявності"}
+    </span>
+  );
+}
+
+
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -37,9 +51,7 @@ export default function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [promoOnly, setPromoOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [baseFilter, setBaseFilter] = useState("");
-  const [priceMin, setPriceMin] = useState("");
-  const [priceMax, setPriceMax] = useState("");
+  const [brandFilter, setBrandFilter] = useState("");
   const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "name-asc">(
     "default"
   );
@@ -99,28 +111,26 @@ export default function CatalogPage() {
     return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
   }, [products]);
 
-  // Regex-extracted attributes (series, article, цоколь, колба, etc.) per
-  // product — used both for smarter "similar products" ranking and to power
-  // the цоколь filter dropdown below.
+  // Regex-extracted attributes (series/brand, article, цоколь, колба, etc.)
+  // per product — used both for smarter "similar products" ranking and to
+  // power the brand filter dropdown below.
   const attributesById = useMemo(() => {
     const map = new Map<string, ProductAttributes>();
     for (const p of products) map.set(p.id, extractAttributes(p.name));
     return map;
   }, [products]);
 
-  const baseOptions = useMemo(() => {
+  const brandOptions = useMemo(() => {
     const set = new Set<string>();
     for (const p of products) {
-      const base = attributesById.get(p.id)?.base;
-      if (base) set.add(base);
+      const brand = attributesById.get(p.id)?.series;
+      if (brand) set.add(brand);
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
   }, [products, attributesById]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const min = priceMin.trim() === "" ? null : Number(priceMin);
-    const max = priceMax.trim() === "" ? null : Number(priceMax);
     return products.filter((p) => {
       if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
         return false;
@@ -128,12 +138,10 @@ export default function CatalogPage() {
       if (categoryFilter && (p.category || UNCATEGORIZED) !== categoryFilter) return false;
       if (promoOnly && !p.isPromo) return false;
       if (inStockOnly && p.stock <= 0) return false;
-      if (baseFilter && attributesById.get(p.id)?.base !== baseFilter) return false;
-      if (min != null && !Number.isNaN(min) && p.price < min) return false;
-      if (max != null && !Number.isNaN(max) && p.price > max) return false;
+      if (brandFilter && attributesById.get(p.id)?.series !== brandFilter) return false;
       return true;
     });
-  }, [products, search, categoryFilter, promoOnly, inStockOnly, baseFilter, priceMin, priceMax, attributesById]);
+  }, [products, search, categoryFilter, promoOnly, inStockOnly, brandFilter, attributesById]);
 
   const sorted = useMemo(() => {
     const arr = [...filtered];
@@ -168,18 +176,14 @@ export default function CatalogPage() {
     !!categoryFilter ||
     promoOnly ||
     inStockOnly ||
-    !!baseFilter ||
-    priceMin.trim() !== "" ||
-    priceMax.trim() !== "";
+    !!brandFilter;
 
   function resetFilters() {
     setSearch("");
     setCategoryFilter("");
     setPromoOnly(false);
     setInStockOnly(false);
-    setBaseFilter("");
-    setPriceMin("");
-    setPriceMax("");
+    setBrandFilter("");
     setSortOrder("default");
   }
 
@@ -188,11 +192,9 @@ export default function CatalogPage() {
   // while the panel is collapsed.
   const activeExtraFilterCount = [
     !!categoryFilter,
-    !!baseFilter,
+    !!brandFilter,
     promoOnly,
     inStockOnly,
-    priceMin.trim() !== "",
-    priceMax.trim() !== "",
     sortOrder !== "default",
   ].filter(Boolean).length;
 
@@ -322,16 +324,16 @@ export default function CatalogPage() {
                 </option>
               ))}
             </select>
-            {baseOptions.length > 1 && (
+            {brandOptions.length > 1 && (
               <select
-                value={baseFilter}
-                onChange={(e) => setBaseFilter(e.target.value)}
+                value={brandFilter}
+                onChange={(e) => setBrandFilter(e.target.value)}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
               >
-                <option value="">Усі цоколі</option>
-                {baseOptions.map((b) => (
+                <option value="">Усі бренди</option>
+                {brandOptions.map((b) => (
                   <option key={b} value={b}>
-                    Цоколь {b}
+                    {b}
                   </option>
                 ))}
               </select>
@@ -346,26 +348,6 @@ export default function CatalogPage() {
               <option value="price-desc">Ціна: від дорогих</option>
               <option value="name-asc">За назвою (А-Я)</option>
             </select>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <input
-                type="number"
-                min={0}
-                inputMode="numeric"
-                placeholder="Ціна від"
-                value={priceMin}
-                onChange={(e) => setPriceMin(e.target.value)}
-                className="w-1/2 sm:w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
-              <input
-                type="number"
-                min={0}
-                inputMode="numeric"
-                placeholder="Ціна до"
-                value={priceMax}
-                onChange={(e) => setPriceMax(e.target.value)}
-                className="w-1/2 sm:w-24 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
             <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
               <input type="checkbox" checked={promoOnly} onChange={(e) => setPromoOnly(e.target.checked)} />
               Тільки акційні
@@ -389,8 +371,7 @@ export default function CatalogPage() {
           </div>
 
           {/* Mobile: collapsible filter panel — picking a select/checkbox
-              value applies it immediately and closes the panel; price
-              inputs stay open while typing (closed via "Готово"/reset). */}
+              value applies it immediately and closes the panel. */}
           {mobileFiltersOpen && (
             <div className="sm:hidden mt-2 border border-slate-200 rounded-lg p-3 bg-white space-y-2">
               <select
@@ -408,19 +389,19 @@ export default function CatalogPage() {
                   </option>
                 ))}
               </select>
-              {baseOptions.length > 1 && (
+              {brandOptions.length > 1 && (
                 <select
-                  value={baseFilter}
+                  value={brandFilter}
                   onChange={(e) => {
-                    setBaseFilter(e.target.value);
+                    setBrandFilter(e.target.value);
                     setMobileFiltersOpen(false);
                   }}
                   className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
                 >
-                  <option value="">Усі цоколі</option>
-                  {baseOptions.map((b) => (
+                  <option value="">Усі бренди</option>
+                  {brandOptions.map((b) => (
                     <option key={b} value={b}>
-                      Цоколь {b}
+                      {b}
                     </option>
                   ))}
                 </select>
@@ -438,26 +419,6 @@ export default function CatalogPage() {
                 <option value="price-desc">Ціна: від дорогих</option>
                 <option value="name-asc">За назвою (А-Я)</option>
               </select>
-              <div className="flex gap-2">
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  placeholder="Ціна від"
-                  value={priceMin}
-                  onChange={(e) => setPriceMin(e.target.value)}
-                  className="w-1/2 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                />
-                <input
-                  type="number"
-                  min={0}
-                  inputMode="numeric"
-                  placeholder="Ціна до"
-                  value={priceMax}
-                  onChange={(e) => setPriceMax(e.target.value)}
-                  className="w-1/2 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                />
-              </div>
               <label className="flex items-center gap-1.5 text-sm text-slate-700">
                 <input
                   type="checkbox"
@@ -597,13 +558,11 @@ function ProductRow({
 }) {
   const qtyControls = (
     <div className="shrink-0 flex items-center gap-1">
-      <input
-        type="number"
-        min={0}
+      <QtyInput
+        value={qty}
         max={product.stock}
         disabled={product.stock <= 0}
-        value={qty}
-        onChange={(e) => onQty(Number(e.target.value))}
+        onChange={onQty}
         className="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
       />
       <button
@@ -658,10 +617,8 @@ function ProductRow({
           )}
         </button>
 
-        <div className="hidden sm:block text-xs text-slate-400 w-24 shrink-0 text-right">
-          {product.stock > 0 ? `Залишок: ${product.stock}` : (
-            <span className="text-slate-400">Немає в наявності</span>
-          )}
+        <div className="hidden sm:flex w-28 shrink-0 justify-end">
+          <StockBadge stock={product.stock} />
         </div>
 
         <div className="hidden sm:block text-sm font-semibold text-slate-900 w-24 shrink-0 text-right">
@@ -678,9 +635,7 @@ function ProductRow({
           <span className="text-sm font-semibold text-slate-900">
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
-          <span className="text-xs text-slate-400">
-            {product.stock > 0 ? `Залишок: ${product.stock}` : "Немає в наявності"}
-          </span>
+          <StockBadge stock={product.stock} />
         </div>
         {qtyControls}
       </div>
@@ -755,18 +710,16 @@ function QuickViewModal({
               <div className="text-xl font-semibold text-slate-900 mb-1">
                 {product.price.toLocaleString("uk-UA")} ₴
               </div>
-              <div className="text-xs text-slate-400 mb-3">
-                {product.stock > 0 ? `Залишок: ${product.stock}` : "Немає в наявності"}
+              <div className="mb-3">
+                <StockBadge stock={product.stock} />
               </div>
 
               <div className="flex items-center gap-2">
-                <input
-                  type="number"
-                  min={0}
+                <QtyInput
+                  value={qty}
                   max={product.stock}
                   disabled={product.stock <= 0}
-                  value={qty}
-                  onChange={(e) => onQty(Number(e.target.value))}
+                  onChange={onQty}
                   className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm disabled:bg-slate-100"
                 />
                 <button

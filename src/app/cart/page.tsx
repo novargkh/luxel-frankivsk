@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
 
 type ProductImage = { id: string; url: string };
@@ -228,12 +229,11 @@ export default function CartPage() {
                         {product.price.toLocaleString("uk-UA")} ₴
                       </td>
                       <td className="px-3 py-2 text-center">
-                        <input
-                          type="number"
+                        <QtyInput
+                          value={quantity}
                           min={1}
                           max={product.stock}
-                          value={quantity}
-                          onChange={(e) => setQty(product.id, Number(e.target.value))}
+                          onChange={(n) => setQty(product.id, n)}
                           className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center"
                         />
                       </td>

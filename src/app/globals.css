@@ -37,3 +37,13 @@ body {
 .print-only {
   display: none;
 }
+
+/* Hides the scrollbar on horizontally-scrollable strips (e.g. the navbar's
+   link row on narrow screens) while keeping them scrollable. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

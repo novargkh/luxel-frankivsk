@@ -25,11 +25,15 @@ export default function Navbar() {
 
   return (
     <header className="border-b border-slate-200 bg-white sticky top-0 z-10 no-print">
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4 flex-wrap">
-        <div className="flex items-center gap-1 flex-wrap">
-          <Link href="/" className="flex items-center mr-4">
-            <Image src="/brand/logo.png" alt="LUXEL" width={92} height={28} priority />
-          </Link>
+      {/* Always a single line: logo and logout stay pinned, the link list
+          in between scrolls horizontally ("carousel") instead of wrapping
+          onto extra rows when it doesn't fit narrow screens. */}
+      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
+        <Link href="/" className="flex items-center shrink-0">
+          <Image src="/brand/logo.png" alt="LUXEL" width={92} height={28} priority />
+        </Link>
+
+        <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar flex-1 min-w-0">
           <Link href="/" className={linkClass("/")}>
             Каталог
           </Link>
@@ -78,15 +82,15 @@ export default function Navbar() {
               </Link>
             </>
           )}
-        </div>
+        </nav>
 
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-slate-500 hidden sm:inline">
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-sm text-slate-500 hidden lg:inline">
             {session.user.name} {isAdmin && "(адмін)"}
           </span>
           <button
             onClick={() => signOut({ callbackUrl: "/login" })}
-            className="text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5"
+            className="text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-1.5 whitespace-nowrap"
           >
             Вийти
           </button>
