@@ -1,0 +1,174 @@
+// Prisma schema for the LUXEL client portal (personal cabinet) project
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  CLIENT
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  SHIPPED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENT
+  FIXED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  company      String?
+  role         Role     @default(CLIENT)
+  createdAt    DateTime @default(now())
+
+  orders Order[]
+  shops  Shop[]
+}
+
+// A delivery/pickup point that belongs to a client. A client with several
+// stores can add each one separately with its own address and geolocation.
+model Shop {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name          String
+  address       String
+  contactPerson String?
+  phone         String?
+  lat           Float?
+  lng           Float?
+  createdAt     DateTime @default(now())
+
+  orders     Order[]
+  routeStops RouteStop[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Float     @default(0)
+  stock       Int       @default(0)
+  category    String?
+  videoUrl    String?
+  isPromo     Boolean   @default(false)
+  promoText   String?
+  isActive    Boolean   @default(true)
+  // Canonical luxel.ua product URL. Set for products that came from the
+  // bulk import or the "Оновити з luxel.ua" admin sync — used to avoid
+  // re-adding the same product on a later sync. Null for products the
+  // admin created by hand.
+  sourceUrl   String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  images     ProductImage[]
+  orderItems OrderItem[]
+}
+
+model ProductImage {
+  id        String  @id @default(cuid())
+  url       String
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model Order {
+  id             String      @id @default(cuid())
+  userId         String
+  user           User        @relation(fields: [userId], references: [id])
+  shopId         String?
+  shop           Shop?       @relation(fields: [shopId], references: [id])
+  status         OrderStatus @default(NEW)
+  comment        String?
+  promoCodeId    String?
+  promoCode      PromoCode?  @relation(fields: [promoCodeId], references: [id])
+  discountAmount Float       @default(0)
+  createdAt      DateTime    @default(now())
+
+  items          OrderItem[]
+  routeStopOrder RouteStopOrder?
+}
+
+model OrderItem {
+  id           String  @id @default(cuid())
+  orderId      String
+  order        Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product @relation(fields: [productId], references: [id])
+  quantity     Int
+  priceAtOrder Float
+}
+
+// Promo codes for giveaways and promotions. Can be single-use (one code —
+// one winner) or reusable up to a limit, with an optional expiry date.
+model PromoCode {
+  id          String       @id @default(cuid())
+  code        String       @unique
+  type        DiscountType
+  value       Float
+  usageLimit  Int?
+  isActive    Boolean      @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime     @default(now())
+
+  orders Order[]
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+}
+
+// A delivery route for a given date, made up of ordered stops.
+model Route {
+  id        String   @id @default(cuid())
+  name      String?
+  date      DateTime
+  createdAt DateTime @default(now())
+
+  stops RouteStop[]
+}
+
+// One physical stop on a route (a shop). Multiple orders for the same shop
+// are aggregated into a single stop for the loading list.
+model RouteStop {
+  id            String  @id @default(cuid())
+  routeId       String
+  route         Route   @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  position      Int
+  shopId        String?
+  shop          Shop?   @relation(fields: [shopId], references: [id])
+  label         String
+  address       String
+  contactPerson String?
+  phone         String?
+  lat           Float?
+  lng           Float?
+
+  orders RouteStopOrder[]
+}
+
+model RouteStopOrder {
+  id          String    @id @default(cuid())
+  routeStopId String
+  routeStop   RouteStop @relation(fields: [routeStopId], references: [id], onDelete: Cascade)
+  orderId     String    @unique
+  order       Order     @relation(fields: [orderId], references: [id])
+}
