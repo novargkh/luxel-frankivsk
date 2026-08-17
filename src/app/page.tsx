@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { useCart } from "@/lib/cart";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -21,25 +22,24 @@ type Product = {
 
 type Announcement = { id: string; title: string; body: string; createdAt: string };
 type Shop = { id: string; name: string; address: string };
-type AppliedPromo = { code: string; type: "PERCENT" | "FIXED"; value: number };
+
+const UNCATEGORIZED = "Інше";
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
-  const [shopId, setShopId] = useState("");
-  const [cart, setCart] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
-  const [comment, setComment] = useState("");
-  const [placing, setPlacing] = useState(false);
-  const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(
-    null
-  );
   const [showAnnouncements, setShowAnnouncements] = useState(true);
-  const [promoInput, setPromoInput] = useState("");
-  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null);
-  const [promoChecking, setPromoChecking] = useState(false);
-  const [promoError, setPromoError] = useState("");
+
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [promoOnly, setPromoOnly] = useState(false);
+  const [inStockOnly, setInStockOnly] = useState(false);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [quickView, setQuickView] = useState<Product | null>(null);
+
+  const { cart, setQty, addOne } = useCart();
 
   async function loadData() {
     setLoading(true);
@@ -48,120 +48,88 @@ export default function CatalogPage() {
       fetch("/api/announcements"),
       fetch("/api/shops"),
     ]);
-    setProducts(await productsRes.json());
+    const productsData: Product[] = await productsRes.json();
+    setProducts(productsData);
     setAnnouncements(await announcementsRes.json());
-    const shopsData: Shop[] = await shopsRes.json();
-    setShops(shopsData);
-    setShopId((prev) => prev || shopsData[0]?.id || "");
+    setShops(await shopsRes.json());
     setLoading(false);
+    // Expand every category by default the first time products load.
+    setExpanded((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set(productsData.map((p) => p.category || UNCATEGORIZED));
+    });
   }
 
   useEffect(() => {
     loadData();
   }, []);
 
-  function setQty(productId: string, qty: number) {
-    setCart((prev) => {
-      const next = { ...prev };
-      if (qty <= 0) {
-        delete next[productId];
-      } else {
-        next[productId] = qty;
+  const categories = useMemo(() => {
+    const set = new Set(products.map((p) => p.category || UNCATEGORIZED));
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
+  }, [products]);
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return products.filter((p) => {
+      if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
+        return false;
       }
+      if (categoryFilter && (p.category || UNCATEGORIZED) !== categoryFilter) return false;
+      if (promoOnly && !p.isPromo) return false;
+      if (inStockOnly && p.stock <= 0) return false;
+      return true;
+    });
+  }, [products, search, categoryFilter, promoOnly, inStockOnly]);
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, Product[]>();
+    for (const p of filtered) {
+      const key = p.category || UNCATEGORIZED;
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(p);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "uk"));
+  }, [filtered]);
+
+  const isFiltering = search.trim().length > 0 || !!categoryFilter || promoOnly || inStockOnly;
+
+  function toggleCategory(cat: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
       return next;
     });
   }
 
-  const cartItems = useMemo(
+  function similarProducts(p: Product) {
+    const cat = p.category || UNCATEGORIZED;
+    return products.filter((x) => x.id !== p.id && (x.category || UNCATEGORIZED) === cat).slice(0, 12);
+  }
+
+  const cartCount = Object.keys(cart).length;
+  const cartTotal = useMemo(
     () =>
-      Object.entries(cart)
-        .map(([productId, quantity]) => {
-          const product = products.find((p) => p.id === productId);
-          return product ? { product, quantity } : null;
-        })
-        .filter(Boolean) as { product: Product; quantity: number }[],
+      Object.entries(cart).reduce((sum, [id, qty]) => {
+        const p = products.find((x) => x.id === id);
+        return sum + (p ? p.price * qty : 0);
+      }, 0),
     [cart, products]
   );
 
-  const total = cartItems.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
   const profileIncomplete = !loading && shops.length === 0;
-
-  const discountAmount = appliedPromo
-    ? appliedPromo.type === "PERCENT"
-      ? Math.round(total * (appliedPromo.value / 100) * 100) / 100
-      : Math.min(appliedPromo.value, total)
-    : 0;
-  const finalTotal = Math.max(0, total - discountAmount);
-
-  async function applyPromo() {
-    if (!promoInput.trim()) return;
-    setPromoChecking(true);
-    setPromoError("");
-
-    const res = await fetch("/api/promo/check", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: promoInput.trim(), subtotal: total }),
-    });
-    const data = await res.json();
-    setPromoChecking(false);
-
-    if (!data.valid) {
-      setPromoError(data.error || "Промокод недійсний");
-      setAppliedPromo(null);
-      return;
-    }
-
-    setAppliedPromo({ code: data.code, type: data.type, value: data.value });
-  }
-
-  function removePromo() {
-    setAppliedPromo(null);
-    setPromoInput("");
-    setPromoError("");
-  }
-
-  async function placeOrder() {
-    if (cartItems.length === 0 || !shopId) return;
-    setPlacing(true);
-    setMessage(null);
-
-    const res = await fetch("/api/orders", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        items: cartItems.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
-        comment,
-        shopId,
-        promoCode: appliedPromo?.code,
-      }),
-    });
-
-    setPlacing(false);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      setMessage({ type: "error", text: err.error || "Не вдалося оформити замовлення" });
-      return;
-    }
-
-    setCart({});
-    setComment("");
-    removePromo();
-    setMessage({ type: "ok", text: "Замовлення успішно оформлено!" });
-    loadData();
-  }
 
   return (
     <div className="min-h-screen flex flex-col">
       <Navbar />
 
-      <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1">
+      <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1 pb-24">
         {profileIncomplete && (
           <div className="mb-6 rounded-xl border border-brand/30 bg-red-50 p-4 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-sm text-slate-700">
               Щоб оформлювати замовлення, заповніть профіль і додайте хоча б один
-              магазин (адресу доставки).
+              магазин (адресу доставки). Товари можна додавати в кошик вже зараз.
             </p>
             <Link
               href="/profile"
@@ -192,209 +160,328 @@ export default function CatalogPage() {
           </div>
         )}
 
-        <div className="flex flex-col lg:flex-row gap-6">
-          <div className="flex-1">
-            <h1 className="text-lg font-semibold text-slate-900 mb-4">Каталог товарів</h1>
+        <h1 className="text-lg font-semibold text-slate-900 mb-4">Каталог товарів</h1>
 
-            {loading ? (
-              <p className="text-sm text-slate-500">Завантаження...</p>
-            ) : products.length === 0 ? (
-              <p className="text-sm text-slate-500">Товари ще не додано.</p>
-            ) : (
-              <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-                {products.map((p) => (
-                  <div
-                    key={p.id}
-                    className="border border-slate-200 bg-white rounded-xl overflow-hidden flex flex-col"
+        {/* Search + filters */}
+        <div className="mb-5 flex flex-col sm:flex-row gap-2 sm:items-center flex-wrap">
+          <input
+            placeholder="Пошук товару за назвою чи описом..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="flex-1 min-w-[220px] border border-slate-300 rounded-lg px-3 py-2 text-sm"
+          />
+          <select
+            value={categoryFilter}
+            onChange={(e) => setCategoryFilter(e.target.value)}
+            className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="">Усі категорії</option>
+            {categories.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+          <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
+            <input type="checkbox" checked={promoOnly} onChange={(e) => setPromoOnly(e.target.checked)} />
+            Тільки акційні
+          </label>
+          <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
+            <input
+              type="checkbox"
+              checked={inStockOnly}
+              onChange={(e) => setInStockOnly(e.target.checked)}
+            />
+            Тільки в наявності
+          </label>
+        </div>
+
+        {loading ? (
+          <p className="text-sm text-slate-500">Завантаження...</p>
+        ) : grouped.length === 0 ? (
+          <p className="text-sm text-slate-500">Нічого не знайдено.</p>
+        ) : (
+          <div className="space-y-4">
+            {grouped.map(([category, items]) => {
+              const isOpen = isFiltering || expanded.has(category);
+              return (
+                <div key={category} className="border border-slate-200 bg-white rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(category)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 text-left"
                   >
-                    <div className="aspect-square bg-slate-100 relative">
-                      {p.images[0] ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={p.images[0].url}
-                          alt={p.name}
-                          className="w-full h-full object-cover"
+                    <span className="text-sm font-semibold text-slate-900">
+                      {category}{" "}
+                      <span className="text-xs font-normal text-slate-400">({items.length})</span>
+                    </span>
+                    <span
+                      className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                    >
+                      ▾
+                    </span>
+                  </button>
+
+                  {isOpen && (
+                    <div className="divide-y divide-slate-100">
+                      {items.map((p) => (
+                        <ProductRow
+                          key={p.id}
+                          product={p}
+                          qty={cart[p.id] ?? 0}
+                          onQty={(q) => setQty(p.id, q)}
+                          onOpen={() => setQuickView(p)}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">
-                          немає фото
-                        </div>
-                      )}
-                      {p.isPromo && (
-                        <span className="absolute top-2 left-2 bg-brand text-white text-xs px-2 py-0.5 rounded-full">
-                          Акція
-                        </span>
-                      )}
-                      {p.stock <= 0 && (
-                        <span className="absolute top-2 right-2 bg-slate-900/80 text-white text-xs px-2 py-0.5 rounded-full">
-                          Немає в наявності
-                        </span>
-                      )}
+                      ))}
                     </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </main>
 
-                    <div className="p-3 flex-1 flex flex-col">
-                      <h3 className="text-sm font-medium text-slate-900">{p.name}</h3>
-                      {p.description && (
-                        <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                          {p.description}
-                        </p>
-                      )}
-                      {p.isPromo && p.promoText && (
-                        <p className="text-xs text-brand mt-1">{p.promoText}</p>
-                      )}
-                      {p.videoUrl && (
-                        <video
-                          src={p.videoUrl}
-                          controls
-                          className="mt-2 rounded-lg w-full max-h-40"
-                        />
-                      )}
+      {/* Sticky mini-cart bar */}
+      {cartCount > 0 && (
+        <div className="no-print fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.06)] z-10">
+          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
+            <span className="text-sm text-slate-600">
+              У кошику: <span className="font-semibold text-slate-900">{cartCount}</span>{" "}
+              {cartCount === 1 ? "товар" : "товарів"} на{" "}
+              <span className="font-semibold text-slate-900">
+                {cartTotal.toLocaleString("uk-UA")} ₴
+              </span>
+            </span>
+            <Link
+              href="/cart"
+              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark whitespace-nowrap"
+            >
+              Перейти до кошика →
+            </Link>
+          </div>
+        </div>
+      )}
 
-                      <div className="mt-auto pt-3 flex items-center justify-between">
-                        <div>
-                          <div className="text-sm font-semibold text-slate-900">
-                            {p.price.toLocaleString("uk-UA")} ₴
-                          </div>
-                          <div className="text-xs text-slate-400">Залишок: {p.stock}</div>
-                        </div>
+      {quickView && (
+        <QuickViewModal
+          product={quickView}
+          qty={cart[quickView.id] ?? 0}
+          onQty={(q) => setQty(quickView.id, q)}
+          onAdd={() => addOne(quickView.id)}
+          onClose={() => setQuickView(null)}
+          similar={similarProducts(quickView)}
+          onSelectSimilar={(p) => setQuickView(p)}
+        />
+      )}
+    </div>
+  );
+}
 
-                        <input
-                          type="number"
-                          min={0}
-                          max={p.stock}
-                          disabled={p.stock <= 0 || profileIncomplete}
-                          value={cart[p.id] ?? 0}
-                          onChange={(e) => setQty(p.id, Number(e.target.value))}
-                          className="w-16 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
+function ProductRow({
+  product,
+  qty,
+  onQty,
+  onOpen,
+}: {
+  product: Product;
+  qty: number;
+  onQty: (q: number) => void;
+  onOpen: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition">
+      <button
+        onClick={onOpen}
+        className="shrink-0 w-14 h-14 rounded-lg bg-slate-100 overflow-hidden relative"
+      >
+        {product.images[0] ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={product.images[0].url}
+            alt={product.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
+            немає фото
+          </div>
+        )}
+        {product.isPromo && (
+          <span className="absolute -top-1 -left-1 bg-brand text-white text-[9px] px-1 rounded">
+            %
+          </span>
+        )}
+      </button>
+
+      <button onClick={onOpen} className="flex-1 min-w-0 text-left">
+        <div className="text-sm font-medium text-slate-900 truncate">{product.name}</div>
+        {product.description && (
+          <div className="text-xs text-slate-500 truncate">{product.description}</div>
+        )}
+        {product.isPromo && product.promoText && (
+          <div className="text-xs text-brand truncate">{product.promoText}</div>
+        )}
+      </button>
+
+      <div className="hidden sm:block text-xs text-slate-400 w-24 shrink-0 text-right">
+        {product.stock > 0 ? `Залишок: ${product.stock}` : (
+          <span className="text-slate-400">Немає в наявності</span>
+        )}
+      </div>
+
+      <div className="text-sm font-semibold text-slate-900 w-24 shrink-0 text-right">
+        {product.price.toLocaleString("uk-UA")} ₴
+      </div>
+
+      <div className="shrink-0 flex items-center gap-1">
+        <input
+          type="number"
+          min={0}
+          max={product.stock}
+          disabled={product.stock <= 0}
+          value={qty}
+          onChange={(e) => onQty(Number(e.target.value))}
+          className="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
+        />
+        <button
+          disabled={product.stock <= 0}
+          onClick={() => onQty(qty + 1)}
+          className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 hover:bg-slate-100 disabled:opacity-40"
+        >
+          +1
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function QuickViewModal({
+  product,
+  qty,
+  onQty,
+  onAdd,
+  onClose,
+  similar,
+  onSelectSimilar,
+}: {
+  product: Product;
+  qty: number;
+  onQty: (q: number) => void;
+  onAdd: () => void;
+  onClose: () => void;
+  similar: Product[];
+  onSelectSimilar: (p: Product) => void;
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-slate-900/50 z-20 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between p-4 border-b border-slate-100">
+          <h2 className="text-base font-semibold text-slate-900 pr-6">{product.name}</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-lg">
+            ✕
+          </button>
+        </div>
+
+        <div className="p-4 grid sm:grid-cols-2 gap-4">
+          <div className="aspect-square bg-slate-100 rounded-lg overflow-hidden">
+            {product.images[0] ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={product.images[0].url}
+                alt={product.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">
+                немає фото
               </div>
             )}
           </div>
 
-          <aside className="lg:w-80 shrink-0">
-            <div className="sticky top-20 border border-slate-200 bg-white rounded-xl p-4">
-              <h2 className="text-sm font-semibold text-slate-900 mb-3">Кошик</h2>
+          <div className="flex flex-col">
+            {product.category && (
+              <span className="text-xs text-slate-400 mb-1">{product.category}</span>
+            )}
+            {product.description && (
+              <p className="text-sm text-slate-600 mb-2">{product.description}</p>
+            )}
+            {product.isPromo && product.promoText && (
+              <p className="text-sm text-brand mb-2">{product.promoText}</p>
+            )}
+            {product.videoUrl && (
+              <video src={product.videoUrl} controls className="rounded-lg w-full mb-2" />
+            )}
 
-              {cartItems.length === 0 ? (
-                <p className="text-xs text-slate-400">Додайте товари з каталогу</p>
-              ) : (
-                <div className="space-y-2 mb-3">
-                  {cartItems.map(({ product, quantity }) => (
-                    <div key={product.id} className="flex justify-between text-xs">
-                      <span className="text-slate-600 truncate pr-2">
-                        {product.name} × {quantity}
-                      </span>
-                      <span className="text-slate-900 font-medium whitespace-nowrap">
-                        {(product.price * quantity).toLocaleString("uk-UA")} ₴
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="mb-3">
-                {appliedPromo ? (
-                  <div className="flex items-center justify-between bg-emerald-50 border border-emerald-200 rounded-lg px-2 py-1.5 text-xs">
-                    <span className="text-emerald-700 font-medium">
-                      Промокод {appliedPromo.code} застосовано
-                    </span>
-                    <button onClick={removePromo} className="text-emerald-700 hover:text-emerald-900">
-                      ✕
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex gap-2">
-                    <input
-                      placeholder="Промокод"
-                      value={promoInput}
-                      onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
-                      className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
-                    />
-                    <button
-                      onClick={applyPromo}
-                      disabled={promoChecking || !promoInput.trim()}
-                      className="text-xs border border-slate-200 rounded-lg px-3 hover:bg-slate-50 disabled:opacity-50"
-                    >
-                      {promoChecking ? "..." : "Застосувати"}
-                    </button>
-                  </div>
-                )}
-                {promoError && (
-                  <p className="text-xs text-red-600 mt-1">{promoError}</p>
-                )}
+            <div className="mt-auto pt-2">
+              <div className="text-xl font-semibold text-slate-900 mb-1">
+                {product.price.toLocaleString("uk-UA")} ₴
+              </div>
+              <div className="text-xs text-slate-400 mb-3">
+                {product.stock > 0 ? `Залишок: ${product.stock}` : "Немає в наявності"}
               </div>
 
-              <div className="border-t border-slate-100 pt-2 mb-3 space-y-1">
-                <div className="flex justify-between text-sm text-slate-500">
-                  <span>Сума</span>
-                  <span>{total.toLocaleString("uk-UA")} ₴</span>
-                </div>
-                {discountAmount > 0 && (
-                  <div className="flex justify-between text-sm text-emerald-600">
-                    <span>Знижка</span>
-                    <span>−{discountAmount.toLocaleString("uk-UA")} ₴</span>
-                  </div>
-                )}
-                <div className="flex justify-between text-sm font-semibold text-slate-900">
-                  <span>Разом</span>
-                  <span>{finalTotal.toLocaleString("uk-UA")} ₴</span>
-                </div>
-              </div>
-
-              {shops.length > 0 && (
-                <div className="mb-3">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Магазин доставки
-                  </label>
-                  <select
-                    value={shopId}
-                    onChange={(e) => setShopId(e.target.value)}
-                    className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs"
-                  >
-                    {shops.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <textarea
-                placeholder="Коментар до замовлення (необов'язково)"
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-2 py-1.5 text-xs mb-3 resize-none"
-                rows={2}
-              />
-
-              {message && (
-                <p
-                  className={`text-xs mb-3 rounded-lg px-2 py-1.5 ${
-                    message.type === "ok"
-                      ? "bg-emerald-50 text-emerald-700"
-                      : "bg-red-50 text-red-700"
-                  }`}
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={product.stock}
+                  disabled={product.stock <= 0}
+                  value={qty}
+                  onChange={(e) => onQty(Number(e.target.value))}
+                  className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm disabled:bg-slate-100"
+                />
+                <button
+                  disabled={product.stock <= 0}
+                  onClick={onAdd}
+                  className="flex-1 bg-brand text-white rounded-lg py-1.5 text-sm font-medium hover:bg-brand-dark disabled:opacity-50"
                 >
-                  {message.text}
-                </p>
-              )}
-
-              <button
-                onClick={placeOrder}
-                disabled={cartItems.length === 0 || placing || !shopId}
-                className="w-full bg-brand text-white rounded-lg py-2 text-sm font-medium hover:bg-brand-dark disabled:opacity-50"
-              >
-                {placing ? "Оформлюємо..." : "Оформити замовлення"}
-              </button>
+                  Додати в кошик
+                </button>
+              </div>
             </div>
-          </aside>
+          </div>
         </div>
-      </main>
+
+        {similar.length > 0 && (
+          <div className="border-t border-slate-100 p-4">
+            <h3 className="text-sm font-semibold text-slate-900 mb-2">Схожі товари</h3>
+            <div className="flex gap-3 overflow-x-auto pb-1">
+              {similar.map((s) => (
+                <button
+                  key={s.id}
+                  onClick={() => onSelectSimilar(s)}
+                  className="shrink-0 w-28 text-left"
+                >
+                  <div className="w-28 h-28 rounded-lg bg-slate-100 overflow-hidden mb-1">
+                    {s.images[0] ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={s.images[0].url}
+                        alt={s.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
+                        немає фото
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-xs text-slate-700 line-clamp-2">{s.name}</div>
+                  <div className="text-xs font-semibold text-slate-900">
+                    {s.price.toLocaleString("uk-UA")} ₴
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

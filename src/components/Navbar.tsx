@@ -4,10 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { useCart } from "@/lib/cart";
 
 export default function Navbar() {
   const { data: session } = useSession();
   const pathname = usePathname();
+  const { totalQty } = useCart();
 
   if (!session?.user) return null;
 
@@ -30,6 +32,17 @@ export default function Navbar() {
           </Link>
           <Link href="/" className={linkClass("/")}>
             Каталог
+          </Link>
+          <Link href="/promotions" className={linkClass("/promotions")}>
+            Акції
+          </Link>
+          <Link href="/cart" className={`${linkClass("/cart")} relative`}>
+            Кошик
+            {totalQty > 0 && (
+              <span className="ml-1.5 inline-flex items-center justify-center min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-white text-brand border border-brand text-[10px] leading-none align-middle font-semibold">
+                {totalQty}
+              </span>
+            )}
           </Link>
           <Link href="/orders" className={linkClass("/orders")}>
             Мої замовлення
