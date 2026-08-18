@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { normalizeCategory } from "@/lib/categorize";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -15,7 +16,12 @@ export async function GET() {
     orderBy: [{ isPromo: "desc" }, { createdAt: "desc" }],
   });
 
-  return NextResponse.json(products);
+  return NextResponse.json(
+    products.map((product) => ({
+      ...product,
+      category: product.category ? normalizeCategory(product.category) : product.category,
+    }))
+  );
 }
 
 export async function POST(req: Request) {
@@ -51,7 +57,7 @@ export async function POST(req: Request) {
       description,
       price: Number(price),
       stock: Number(stock ?? 0),
-      category,
+      category: category ? normalizeCategory(category) : undefined,
       videoUrl: videoUrl || undefined,
       isPromo: Boolean(isPromo),
       promoText: promoText || undefined,

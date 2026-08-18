@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { normalizeCategory } from "@/lib/categorize";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -47,7 +48,7 @@ export async function PATCH(
   if (description !== undefined) data.description = description;
   if (price !== undefined) data.price = Number(price);
   if (stock !== undefined) data.stock = Number(stock);
-  if (category !== undefined) data.category = category;
+  if (category !== undefined) data.category = category ? normalizeCategory(category) : null;
   if (videoUrl !== undefined) data.videoUrl = videoUrl;
   if (isPromo !== undefined) data.isPromo = Boolean(isPromo);
   if (promoText !== undefined) data.promoText = promoText;
