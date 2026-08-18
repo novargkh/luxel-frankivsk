@@ -99,6 +99,10 @@ model Order {
   promoCodeId    String?
   promoCode      PromoCode?  @relation(fields: [promoCodeId], references: [id])
   discountAmount Float       @default(0)
+  // Set once an admin has downloaded this order into a 1С export and
+  // confirmed it's been keyed in there — lets the export screen default to
+  // "not yet sent" orders instead of re-exporting everything every time.
+  exportedAt     DateTime?
   createdAt      DateTime    @default(now())
 
   items          OrderItem[]
