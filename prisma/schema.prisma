@@ -26,12 +26,36 @@ enum DiscountType {
   FIXED
 }
 
+// Tracks an order's progress through the BAS (1C) CommerceML exchange —
+// separate from OrderStatus, which is the client-facing fulfillment status.
+// NEW: never sent. SENDING: included in the most recent mode=query
+// response, waiting for BAS to call mode=success. SENT_TO_BAS: confirmed
+// received by BAS. ERROR: either failed a pre-send validation (e.g. no
+// matchable client/product) or a SENDING order that never got confirmed
+// within the timeout — both are retried on the next exchange cycle.
+enum BasExchangeStatus {
+  NEW
+  SENDING
+  SENT_TO_BAS
+  ERROR
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   passwordHash String
   name         String
   company      String?
+  // Client's own contact phone (distinct from a Shop's delivery-point
+  // phone) — used both as order data and as the email+phone fallback key
+  // for matching this client to an existing BAS contractor when no basId
+  // is set yet.
+  phone        String?
+  // BAS/1C contractor GUID, once known — filled in by an admin (e.g. after
+  // looking it up in BAS) so the exchange can match by stable ID instead
+  // of email+phone. Never set automatically; the portal never creates BAS
+  // contractors itself.
+  basId        String?  @unique
   role         Role     @default(CLIENT)
   createdAt    DateTime @default(now())
 
@@ -79,6 +103,18 @@ model Product {
   // retail pack, and how many packs/units come in one shipping box.
   packQty     Int?
   boxQty      Int?
+  // Explicit article/SKU override for the BAS exchange. Falls back to the
+  // regex-extracted article from the product name (extractAttributes) when
+  // null — see src/lib/onecExchange.ts.
+  article     String?
+  // BAS/1C product GUID, once known — the primary product-matching key for
+  // the exchange when set. Filled in by an admin, e.g. via the "BAS ID"
+  // import on the products page. Never set automatically.
+  basId       String?   @unique
+  // Unit of measure for the BAS exchange's <БазоваяЕдиница>. Every product
+  // in this catalog is sold by the piece, so this defaults to "шт" rather
+  // than requiring it to be filled in for all ~900 products individually.
+  unit        String    @default("шт")
   // Full "Всі характеристики" spec table scraped from the product's
   // luxel.ua page ({label: value}), shown via the "Характеристики" button.
   // Null until the admin runs the specs sync.
@@ -112,7 +148,18 @@ model Order {
   // confirmed it's been keyed in there — lets the export screen default to
   // "not yet sent" orders instead of re-exporting everything every time.
   exportedAt     DateTime?
-  createdAt      DateTime    @default(now())
+  // Human-readable sequential order number (distinct from the cuid `id`,
+  // which is what actually goes out as the stable external <Ид> in the BAS
+  // exchange — the number is just for display / the <Номер> element).
+  orderNumber    Int               @unique @default(autoincrement())
+  paymentMethod  String?
+  deliveryMethod String?
+  // BAS (1C) CommerceML exchange state — see BasExchangeStatus.
+  basStatus      BasExchangeStatus @default(NEW)
+  basError       String?
+  basSentAt      DateTime?
+  basConfirmedAt DateTime?
+  createdAt      DateTime          @default(now())
 
   items          OrderItem[]
   routeStopOrder RouteStopOrder?

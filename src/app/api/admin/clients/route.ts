@@ -17,6 +17,8 @@ export async function GET() {
       name: true,
       email: true,
       company: true,
+      phone: true,
+      basId: true,
       createdAt: true,
       shops: { select: { id: true, name: true, address: true } },
       _count: { select: { orders: true } },

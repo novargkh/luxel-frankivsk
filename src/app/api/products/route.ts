@@ -26,7 +26,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { name, description, price, stock, category, videoUrl, isPromo, promoText, images } =
+  const { name, description, price, stock, category, videoUrl, isPromo, promoText, images, article, basId } =
     body as {
       name: string;
       description?: string;
@@ -37,6 +37,8 @@ export async function POST(req: Request) {
       isPromo?: boolean;
       promoText?: string;
       images?: string[];
+      article?: string;
+      basId?: string;
     };
 
   if (!name || price === undefined) {
@@ -53,6 +55,8 @@ export async function POST(req: Request) {
       videoUrl: videoUrl || undefined,
       isPromo: Boolean(isPromo),
       promoText: promoText || undefined,
+      article: article || undefined,
+      basId: basId || undefined,
       images: {
         create: (images ?? []).map((url) => ({ url })),
       },

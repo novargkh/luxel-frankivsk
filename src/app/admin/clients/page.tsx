@@ -8,6 +8,8 @@ type Client = {
   name: string;
   email: string;
   company: string | null;
+  phone: string | null;
+  basId: string | null;
   createdAt: string;
   shops: { id: string; name: string; address: string }[];
   _count: { orders: number };
@@ -32,6 +34,11 @@ export default function AdminClientsPage() {
   const [created, setCreated] = useState<{ email: string; password: string } | null>(
     null
   );
+  // Inline BAS ID editing — keyed by client id, so each card edits
+  // independently without a separate modal/page.
+  const [basIdDrafts, setBasIdDrafts] = useState<Record<string, string>>({});
+  const [savingBasId, setSavingBasId] = useState<string | null>(null);
+  const [basIdError, setBasIdError] = useState<Record<string, string>>({});
 
   async function load() {
     setLoading(true);
@@ -49,6 +56,24 @@ export default function AdminClientsPage() {
     setCreating(true);
     setCreated(null);
     setError("");
+  }
+
+  async function saveBasId(client: Client) {
+    const value = basIdDrafts[client.id] ?? client.basId ?? "";
+    setSavingBasId(client.id);
+    setBasIdError((e) => ({ ...e, [client.id]: "" }));
+    const res = await fetch(`/api/admin/clients/${client.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ basId: value }),
+    });
+    setSavingBasId(null);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setBasIdError((e) => ({ ...e, [client.id]: err.error || "Не вдалося зберегти" }));
+      return;
+    }
+    load();
   }
 
   async function submit() {
@@ -173,7 +198,10 @@ export default function AdminClientsPage() {
                     <div className="text-sm font-medium text-slate-900">
                       {c.name} {c.company && <span className="text-slate-400">— {c.company}</span>}
                     </div>
-                    <div className="text-xs text-slate-500">{c.email}</div>
+                    <div className="text-xs text-slate-500">
+                      {c.email}
+                      {c.phone && <span> · {c.phone}</span>}
+                    </div>
                   </div>
                   <div className="text-xs text-slate-500 text-right">
                     <div>{c._count.orders} замовлень</div>
@@ -188,6 +216,32 @@ export default function AdminClientsPage() {
                       </div>
                     ))}
                   </div>
+                )}
+                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center gap-2">
+                  <label className="text-xs text-slate-500 shrink-0" title="Ідентифікатор контрагента в BAS — основний ключ зіставлення клієнта для обміну CommerceML">
+                    BAS ID:
+                  </label>
+                  <input
+                    value={basIdDrafts[c.id] ?? c.basId ?? ""}
+                    onChange={(e) => setBasIdDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
+                    placeholder="ще не вказано — зіставлення по email+телефону"
+                    className="flex-1 border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono"
+                  />
+                  <button
+                    onClick={() => saveBasId(c)}
+                    disabled={savingBasId === c.id}
+                    className="text-xs bg-white text-brand border border-brand rounded-lg px-3 py-1 hover:bg-red-50 disabled:opacity-50"
+                  >
+                    {savingBasId === c.id ? "..." : "Зберегти"}
+                  </button>
+                </div>
+                {basIdError[c.id] && (
+                  <p className="mt-1 text-xs text-red-600">{basIdError[c.id]}</p>
+                )}
+                {!c.phone && !c.basId && (
+                  <p className="mt-1 text-xs text-amber-600">
+                    Немає ні BAS ID, ні телефону — замовлення цього клієнта не будуть передані в BAS
+                  </p>
                 )}
               </div>
             ))}

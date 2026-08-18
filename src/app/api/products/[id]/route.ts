@@ -25,6 +25,8 @@ export async function PATCH(
     promoText,
     isActive,
     images,
+    article,
+    basId,
   } = body as {
     name?: string;
     description?: string;
@@ -36,6 +38,8 @@ export async function PATCH(
     promoText?: string;
     isActive?: boolean;
     images?: string[];
+    article?: string;
+    basId?: string;
   };
 
   const data: Record<string, unknown> = {};
@@ -48,6 +52,23 @@ export async function PATCH(
   if (isPromo !== undefined) data.isPromo = Boolean(isPromo);
   if (promoText !== undefined) data.promoText = promoText;
   if (isActive !== undefined) data.isActive = Boolean(isActive);
+  // Used by the BAS (1C) exchange to match this product — see
+  // src/lib/onecExchange.ts. Empty string clears back to null (falls back
+  // to the regex-extracted article from the name).
+  if (article !== undefined) data.article = article || null;
+  if (basId !== undefined) {
+    const trimmed = basId.trim();
+    if (trimmed) {
+      const existing = await prisma.product.findUnique({ where: { basId: trimmed } });
+      if (existing && existing.id !== id) {
+        return NextResponse.json(
+          { error: "Цей BAS ID вже прив'язаний до іншого товару" },
+          { status: 400 }
+        );
+      }
+    }
+    data.basId = trimmed || null;
+  }
 
   if (images !== undefined) {
     await prisma.productImage.deleteMany({ where: { productId: id } });

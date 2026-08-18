@@ -18,6 +18,8 @@ type Product = {
   promoText: string | null;
   isActive: boolean;
   images: ProductImage[];
+  article: string | null;
+  basId: string | null;
 };
 
 const emptyForm = {
@@ -32,6 +34,8 @@ const emptyForm = {
   isActive: true,
   images: [] as string[],
   videoUrl: "",
+  article: "",
+  basId: "",
 };
 
 export default function AdminProductsPage() {
@@ -89,6 +93,8 @@ export default function AdminProductsPage() {
       isActive: p.isActive,
       images: p.images.map((i) => i.url),
       videoUrl: p.videoUrl ?? "",
+      article: p.article ?? "",
+      basId: p.basId ?? "",
     });
     setEditing(true);
   }
@@ -149,6 +155,8 @@ export default function AdminProductsPage() {
       isActive: form.isActive,
       images: form.images,
       videoUrl: form.videoUrl || undefined,
+      article: form.article || undefined,
+      basId: form.basId || undefined,
     };
 
     const res = form.id
@@ -483,6 +491,20 @@ export default function AdminProductsPage() {
                 value={form.stock}
                 onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+              <input
+                placeholder="Артикул (для обміну з BAS)"
+                title="Явний артикул для обміну CommerceML з BAS. Якщо не вказано — визначається автоматично з назви товару."
+                value={form.article}
+                onChange={(e) => setForm((f) => ({ ...f, article: e.target.value }))}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
+              />
+              <input
+                placeholder="BAS ID товару"
+                title="Ідентифікатор товару в BAS — основний ключ зіставлення для обміну CommerceML. Якщо не вказано — зіставлення йде по артикулу."
+                value={form.basId}
+                onChange={(e) => setForm((f) => ({ ...f, basId: e.target.value }))}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
               />
             </div>
 

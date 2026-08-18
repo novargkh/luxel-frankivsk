@@ -13,7 +13,7 @@ const MapPicker = dynamic(() => import("@/components/MapPicker"), {
   ),
 });
 
-type Profile = { id: string; name: string; email: string; company: string | null };
+type Profile = { id: string; name: string; email: string; company: string | null; phone: string | null };
 type Shop = {
   id: string;
   name: string;
@@ -40,6 +40,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
+  const [phone, setPhone] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
 
@@ -100,6 +101,7 @@ export default function ProfilePage() {
     setProfile(p);
     setName(p.name ?? "");
     setCompany(p.company ?? "");
+    setPhone(p.phone ?? "");
     setShops(await shopsRes.json());
     setLoading(false);
   }
@@ -114,7 +116,7 @@ export default function ProfilePage() {
     const res = await fetch("/api/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company }),
+      body: JSON.stringify({ name, company, phone }),
     });
     setSavingProfile(false);
     setProfileMsg(res.ok ? "Збережено" : "Помилка збереження");
@@ -230,13 +232,26 @@ export default function ProfilePage() {
               />
             </div>
           </div>
-          <div className="mb-3">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-            <input
-              value={profile?.email ?? ""}
-              disabled
-              className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-400"
-            />
+          <div className="grid sm:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
+              <input
+                value={profile?.email ?? ""}
+                disabled
+                className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-400"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-600 mb-1">
+                Телефон
+              </label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+380..."
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+              />
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <button
