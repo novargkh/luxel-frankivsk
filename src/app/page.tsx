@@ -196,22 +196,26 @@ export default function CatalogPage() {
   const [showAnnouncements, setShowAnnouncements] = useState(true);
 
   const [search, setSearch] = useState("");
-  // Category drill-down: pick a top-level group first (e.g. "LED
-  // Освітлення"), which reveals its specific subcategories (e.g. "LED
-  // Прожектори") to narrow further — mirrors luxel.ua's own two-level
-  // category menu instead of one long flat list.
-  const [categoryGroupFilter, setCategoryGroupFilter] = useState("");
-  const [categoryFilter, setCategoryFilter] = useState("");
+  // Category tree: a top-level group (e.g. "LED Освітлення") expands to
+  // reveal its specific subcategories (e.g. "LED Прожектори"), which in
+  // turn expand to show products — mirrors luxel.ua's own two-level
+  // category menu, but as an in-place collapsible tree instead of a pair
+  // of <select>s. Both levels start fully collapsed on entry; any number
+  // of branches can be open at once (a real tree, not a single selection).
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   // Extra attribute filters (потужність/колба/цоколь for lamps, колір for
-  // electrofurniture, etc.) that only appear once a category is chosen —
-  // keyed by the ProductAttributes field they filter on.
+  // electrofurniture, etc.) — shown inline under whichever subcategory is
+  // expanded, scoped to just that subcategory's products, so multiple
+  // expanded branches never fight over one global filter. Keyed
+  // `${category}|${attrKey}` so different subcategories' selections don't
+  // collide.
   const [attrFilterValues, setAttrFilterValues] = useState<Record<string, string>>({});
   const [promoOnly, setPromoOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "name-asc">(
     "default"
   );
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [quickView, setQuickView] = useState<Product | null>(null);
   const [specsProduct, setSpecsProduct] = useState<Product | null>(null);
   // On mobile the extra filter controls (everything but search) live in a
@@ -252,38 +256,14 @@ export default function CatalogPage() {
     setAnnouncements(await announcementsRes.json());
     setShops(await shopsRes.json());
     setLoading(false);
-    // Expand every category by default the first time products load.
-    setExpanded((prev) => {
-      if (prev.size > 0) return prev;
-      return new Set(productsData.map((p) => p.category || UNCATEGORIZED));
-    });
+    // Deliberately does NOT auto-expand anything — the tree starts fully
+    // collapsed on every visit, per how the catalog should greet someone
+    // who just opened the cabinet.
   }
 
   useEffect(() => {
     loadData();
   }, []);
-
-  // category (fine-grained string, e.g. "LED Прожектори") -> its top-level
-  // group key (e.g. "svetodiodnoe--led--osveshhenie") — built once from the
-  // same tree the group/subcategory <select>s below are populated from.
-  const categoryToGroup = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const g of CATEGORY_TREE) for (const c of g.categories) map.set(c, g.key);
-    return map;
-  }, []);
-
-  // Only offer groups/subcategories that actually have products right now
-  // (the tree itself is static and covers every category the URL-based
-  // classifier can ever produce).
-  const groupsWithProducts = useMemo(() => {
-    const present = new Set(products.map((p) => p.category || UNCATEGORIZED));
-    return CATEGORY_TREE.map((g) => ({
-      ...g,
-      categories: g.categories.filter((c) => present.has(c)),
-    })).filter((g) => g.categories.length > 0);
-  }, [products]);
-
-  const activeGroup = groupsWithProducts.find((g) => g.key === categoryGroupFilter);
 
   // Regex-extracted attributes (series/brand, article, цоколь, колба, etc.)
   // per product — used for "similar products" ranking, search, and to
@@ -293,19 +273,6 @@ export default function CatalogPage() {
     for (const p of products) map.set(p.id, extractAttributes(p.name));
     return map;
   }, [products]);
-
-  // Products currently in scope by category alone (ignoring search/promo/
-  // stock/attribute filters) — the pool the per-category attribute filters
-  // (потужність/колба/цоколь, колір, довжина кабелю, ...) are derived from,
-  // same as luxel.ua only shows those once you're inside a category.
-  const categoryScopeProducts = useMemo(() => {
-    if (!categoryFilter && !categoryGroupFilter) return [];
-    return products.filter((p) => {
-      const cat = p.category || UNCATEGORIZED;
-      if (categoryFilter) return cat === categoryFilter;
-      return categoryToGroup.get(cat) === categoryGroupFilter;
-    });
-  }, [products, categoryFilter, categoryGroupFilter, categoryToGroup]);
 
   const ATTR_FILTER_DEFS: {
     key: keyof ProductAttributes;
@@ -322,11 +289,16 @@ export default function CatalogPage() {
     { key: "gangCount", label: "Кількість гнізд/клавіш", format: (v) => v },
   ];
 
-  const activeAttrFilters = useMemo(() => {
-    if (categoryScopeProducts.length === 0) return [];
+  // Attribute filter options for ONE subcategory's own products — called
+  // per expanded tree node (not a hook, since it runs inside a render
+  // loop) so each open branch gets filters scoped to just its own
+  // products instead of one global selection fighting over which
+  // category is "active".
+  function attrDefsFor(categoryProducts: Product[]) {
+    if (categoryProducts.length === 0) return [];
     return ATTR_FILTER_DEFS.map((def) => {
       const values = new Set<string>();
-      for (const p of categoryScopeProducts) {
+      for (const p of categoryProducts) {
         const v = attributesById.get(p.id)?.[def.key];
         if (v !== null && v !== undefined) values.add(String(v));
       }
@@ -339,8 +311,7 @@ export default function CatalogPage() {
       });
       return { ...def, options: sortedValues };
     }).filter((d): d is NonNullable<typeof d> => d !== null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categoryScopeProducts, attributesById]);
+  }
 
   // Ukrainian-site-style search: matches name, description AND the series
   // (brand, e.g. AURA/JAZZ/DEBUT/OPERA) and article/SKU extracted from the
@@ -356,16 +327,17 @@ export default function CatalogPage() {
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      const cat = p.category || UNCATEGORIZED;
-      if (categoryFilter && cat !== categoryFilter) return false;
-      if (!categoryFilter && categoryGroupFilter && categoryToGroup.get(cat) !== categoryGroupFilter) {
-        return false;
-      }
       if (promoOnly && !p.isPromo) return false;
       if (inStockOnly && p.stock <= 0) return false;
+      // Attribute filters are namespaced per category ("category|attrKey")
+      // since each expanded tree branch has its own independent set —
+      // only the filters for THIS product's own category ever apply to it.
+      const cat = p.category || UNCATEGORIZED;
       for (const [key, val] of Object.entries(attrFilterValues)) {
         if (!val) continue;
-        const attrVal = attributesById.get(p.id)?.[key as keyof ProductAttributes];
+        const [filterCat, attrKey] = key.split("|");
+        if (filterCat !== cat) continue;
+        const attrVal = attributesById.get(p.id)?.[attrKey as keyof ProductAttributes];
         if (attrVal === null || attrVal === undefined || String(attrVal) !== val) return false;
       }
       return true;
@@ -373,9 +345,6 @@ export default function CatalogPage() {
   }, [
     products,
     search,
-    categoryFilter,
-    categoryGroupFilter,
-    categoryToGroup,
     promoOnly,
     inStockOnly,
     attrFilterValues,
@@ -431,33 +400,68 @@ export default function CatalogPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "uk"));
   }, [sorted]);
 
+  // Two-level tree for rendering: top-level group -> its subcategories
+  // present in the current (filtered/sorted) results -> their products.
+  // Built from `grouped` so it naturally shrinks to just what matches a
+  // search/filter, same as the old flat list did. A subcategory that
+  // isn't part of the known static taxonomy (shouldn't normally happen)
+  // falls into a catch-all "Інше" group instead of silently vanishing.
+  const treeGroups = useMemo(() => {
+    const groupedMap = new Map(grouped);
+    const consumed = new Set<string>();
+    const result: { key: string; label: string; categories: [string, Product[]][]; total: number }[] = [];
+    for (const g of CATEGORY_TREE) {
+      const categories = g.categories
+        .filter((c) => groupedMap.has(c))
+        .map((c): [string, Product[]] => {
+          consumed.add(c);
+          return [c, groupedMap.get(c)!];
+        });
+      if (categories.length === 0) continue;
+      const total = categories.reduce((sum, [, items]) => sum + items.length, 0);
+      result.push({ key: g.key, label: g.label, categories, total });
+    }
+    const leftover = grouped.filter(([c]) => !consumed.has(c));
+    if (leftover.length > 0) {
+      result.push({
+        key: "__other__",
+        label: UNCATEGORIZED,
+        categories: leftover,
+        total: leftover.reduce((sum, [, items]) => sum + items.length, 0),
+      });
+    }
+    return result;
+  }, [grouped]);
+
   const activeAttrFilterCount = Object.values(attrFilterValues).filter(Boolean).length;
 
   const isFiltering =
-    search.trim().length > 0 ||
-    !!categoryFilter ||
-    !!categoryGroupFilter ||
-    promoOnly ||
-    inStockOnly ||
-    activeAttrFilterCount > 0;
+    search.trim().length > 0 || promoOnly || inStockOnly || activeAttrFilterCount > 0;
 
   function resetFilters() {
     setSearch("");
-    setCategoryGroupFilter("");
-    setCategoryFilter("");
     setAttrFilterValues({});
     setPromoOnly(false);
     setInStockOnly(false);
     setSortOrder("default");
+    setExpandedGroups(new Set());
+    setExpanded(new Set());
   }
 
   // Count of "extra" filters (everything but search) — shown as a badge on
   // the mobile "Фільтри" toggle so it's clear something is active even
   // while the panel is collapsed.
   const activeExtraFilterCount =
-    [!!categoryFilter, !!categoryGroupFilter, promoOnly, inStockOnly, sortOrder !== "default"].filter(
-      Boolean
-    ).length + activeAttrFilterCount;
+    [promoOnly, inStockOnly, sortOrder !== "default"].filter(Boolean).length + activeAttrFilterCount;
+
+  function toggleGroup(key: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
 
   function toggleCategory(cat: string) {
     setExpanded((prev) => {
@@ -571,61 +575,10 @@ export default function CatalogPage() {
             </button>
           </div>
 
-          {/* Desktop: full filter row, always visible. Category is a
-              two-step drill-down (group, then its subcategories) instead
-              of one flat list — picking a group reveals its subcategory
-              select right next to it, same as luxel.ua's own menu. */}
+          {/* Desktop: full filter row, always visible. Category navigation
+              itself now lives in the collapsible tree below (group ->
+              subcategory -> products) instead of a pair of <select>s. */}
           <div className="hidden sm:flex gap-2 items-center flex-wrap mt-2">
-            <select
-              value={categoryGroupFilter}
-              onChange={(e) => {
-                setCategoryGroupFilter(e.target.value);
-                setCategoryFilter("");
-                setAttrFilterValues({});
-              }}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
-            >
-              <option value="">Усі категорії</option>
-              {groupsWithProducts.map((g) => (
-                <option key={g.key} value={g.key}>
-                  {g.label}
-                </option>
-              ))}
-            </select>
-            {activeGroup && activeGroup.categories.length > 1 && (
-              <select
-                value={categoryFilter}
-                onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setAttrFilterValues({});
-                }}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
-              >
-                <option value="">Усі в «{activeGroup.label}»</option>
-                {activeGroup.categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
-            {activeAttrFilters.map((def) => (
-              <select
-                key={def.key}
-                value={attrFilterValues[def.key] ?? ""}
-                onChange={(e) =>
-                  setAttrFilterValues((prev) => ({ ...prev, [def.key]: e.target.value }))
-                }
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
-              >
-                <option value="">{def.label}: будь-яка</option>
-                {def.options.map((v) => (
-                  <option key={v} value={v}>
-                    {def.format ? def.format(v) : v}
-                  </option>
-                ))}
-              </select>
-            ))}
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
@@ -662,56 +615,6 @@ export default function CatalogPage() {
               value applies it immediately and closes the panel. */}
           {mobileFiltersOpen && (
             <div className="sm:hidden mt-2 border border-slate-200 rounded-lg p-3 bg-white space-y-2">
-              <select
-                value={categoryGroupFilter}
-                onChange={(e) => {
-                  setCategoryGroupFilter(e.target.value);
-                  setCategoryFilter("");
-                  setAttrFilterValues({});
-                }}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              >
-                <option value="">Усі категорії</option>
-                {groupsWithProducts.map((g) => (
-                  <option key={g.key} value={g.key}>
-                    {g.label}
-                  </option>
-                ))}
-              </select>
-              {activeGroup && activeGroup.categories.length > 1 && (
-                <select
-                  value={categoryFilter}
-                  onChange={(e) => {
-                    setCategoryFilter(e.target.value);
-                    setAttrFilterValues({});
-                  }}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">Усі в «{activeGroup.label}»</option>
-                  {activeGroup.categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {activeAttrFilters.map((def) => (
-                <select
-                  key={def.key}
-                  value={attrFilterValues[def.key] ?? ""}
-                  onChange={(e) =>
-                    setAttrFilterValues((prev) => ({ ...prev, [def.key]: e.target.value }))
-                  }
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">{def.label}: будь-яка</option>
-                  {def.options.map((v) => (
-                    <option key={v} value={v}>
-                      {def.format ? def.format(v) : v}
-                    </option>
-                  ))}
-                </select>
-              ))}
               <select
                 value={sortOrder}
                 onChange={(e) => {
@@ -772,40 +675,96 @@ export default function CatalogPage() {
 
         {loading ? (
           <p className="text-sm text-slate-500">Завантаження...</p>
-        ) : grouped.length === 0 ? (
+        ) : treeGroups.length === 0 ? (
           <p className="text-sm text-slate-500">Нічого не знайдено.</p>
         ) : (
-          <div className="space-y-4">
-            {grouped.map(([category, items]) => {
-              const isOpen = isFiltering || expanded.has(category);
+          <div className="space-y-3">
+            {treeGroups.map((g) => {
+              const groupOpen = isFiltering || expandedGroups.has(g.key);
               return (
-                <div key={category} className="border border-slate-200 bg-white rounded-xl overflow-hidden">
+                <div key={g.key} className="border border-slate-200 bg-white rounded-xl overflow-hidden">
                   <button
-                    onClick={() => toggleCategory(category)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 text-left"
+                    onClick={() => toggleGroup(g.key)}
+                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-100 hover:bg-slate-200 text-left"
                   >
                     <span className="text-sm font-semibold text-slate-900">
-                      {category}{" "}
-                      <span className="text-xs font-normal text-slate-400">({items.length})</span>
+                      {g.label}{" "}
+                      <span className="text-xs font-normal text-slate-400">({g.total})</span>
                     </span>
                     <span
-                      className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                      className={`text-slate-400 transition-transform ${groupOpen ? "rotate-180" : ""}`}
                     >
                       ▾
                     </span>
                   </button>
 
-                  {isOpen && (
+                  {groupOpen && (
                     <div className="divide-y divide-slate-100">
-                      {items.map((p) => (
-                        <ProductRow
-                          key={p.id}
-                          product={p}
-                          qty={cart[p.id] ?? 0}
-                          onQty={(q) => setQty(p.id, q)}
-                          onOpen={() => setQuickView(p)}
-                        />
-                      ))}
+                      {g.categories.map(([category, items]) => {
+                        const isOpen = isFiltering || expanded.has(category);
+                        const attrDefs = attrDefsFor(items);
+                        return (
+                          <div key={category}>
+                            <button
+                              onClick={() => toggleCategory(category)}
+                              className="w-full flex items-center justify-between px-4 py-2.5 pl-6 bg-slate-50 hover:bg-slate-100 text-left"
+                            >
+                              <span className="text-sm font-medium text-slate-800">
+                                {category}{" "}
+                                <span className="text-xs font-normal text-slate-400">({items.length})</span>
+                              </span>
+                              <span
+                                className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                              >
+                                ▾
+                              </span>
+                            </button>
+
+                            {isOpen && (
+                              <div>
+                                {attrDefs.length > 0 && (
+                                  <div className="flex gap-2 flex-wrap px-4 py-2 bg-white border-b border-slate-100">
+                                    {attrDefs.map((def) => {
+                                      const filterKey = `${category}|${def.key}`;
+                                      return (
+                                        <select
+                                          key={def.key}
+                                          value={attrFilterValues[filterKey] ?? ""}
+                                          onChange={(e) =>
+                                            setAttrFilterValues((prev) => ({
+                                              ...prev,
+                                              [filterKey]: e.target.value,
+                                            }))
+                                          }
+                                          className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700"
+                                        >
+                                          <option value="">{def.label}: всі</option>
+                                          {def.options.map((v) => (
+                                            <option key={v} value={v}>
+                                              {def.format ? def.format(v) : v}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                                <div className="divide-y divide-slate-100">
+                                  {items.map((p) => (
+                                    <ProductRow
+                                      key={p.id}
+                                      product={p}
+                                      qty={cart[p.id] ?? 0}
+                                      onQty={(q) => setQty(p.id, q)}
+                                      onOpen={() => setQuickView(p)}
+                                    />
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
