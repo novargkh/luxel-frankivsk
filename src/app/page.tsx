@@ -684,15 +684,23 @@ export default function CatalogPage() {
               return (
                 <div key={g.key} className="border border-slate-200 bg-white rounded-xl overflow-hidden">
                   <button
+                    type="button"
                     onClick={() => toggleGroup(g.key)}
-                    className="w-full flex items-center justify-between px-4 py-3 bg-slate-100 hover:bg-slate-200 text-left"
+                    aria-expanded={groupOpen}
+                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-150 ease-out active:scale-[0.995] ${
+                      groupOpen
+                        ? "bg-brand/10 ring-1 ring-inset ring-brand/30"
+                        : "bg-slate-100 hover:bg-slate-200 active:bg-slate-200"
+                    }`}
                   >
-                    <span className="text-sm font-semibold text-slate-900">
+                    <span className={`text-sm font-semibold ${groupOpen ? "text-brand" : "text-slate-900"}`}>
                       {g.label}{" "}
                       <span className="text-xs font-normal text-slate-400">({g.total})</span>
                     </span>
                     <span
-                      className={`text-slate-400 transition-transform ${groupOpen ? "rotate-180" : ""}`}
+                      className={`transition-all duration-200 ${
+                        groupOpen ? "text-brand rotate-180" : "text-slate-400"
+                      }`}
                     >
                       ▾
                     </span>
@@ -700,87 +708,92 @@ export default function CatalogPage() {
 
                   {groupOpen && (
                     <div>
-                      {/* Keep the complete subcategory list together above
-                          any products. Otherwise opening one subcategory
-                          pushes the remaining subcategories below its
-                          product cards on a long mobile catalog. */}
-                      <div className="divide-y divide-slate-100">
-                        {g.categories.map(([category, items]) => {
-                          const isSameAsGroup = category === g.label;
-                          if (isSameAsGroup) return null;
-                          const isOpen = isFiltering || expanded.has(category);
-                          return (
-                            <button
-                              key={category}
-                              onClick={() => toggleCategory(category)}
-                              className="w-full flex items-center justify-between px-4 py-2.5 pl-6 bg-slate-50 hover:bg-slate-100 text-left"
-                            >
-                              <span className="text-sm font-medium text-slate-800">
-                                {category}{" "}
-                                <span className="text-xs font-normal text-slate-400">({items.length})</span>
-                              </span>
-                              <span
-                                className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
-                              >
-                                ▾
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      {/* Product sections are deliberately rendered only
-                          after the full subcategory menu. Multiple open
-                          subcategories can still show their products here. */}
+                      {/* Each subcategory owns its expanding product section:
+                          button -> its filters -> its products -> next button. */}
                       <div className="divide-y divide-slate-100">
                         {g.categories.map(([category, items]) => {
                           // A broad top-level category with no real child
-                          // (for example "Аксесуари") renders directly here
-                          // without a duplicate same-name subcategory row.
+                          // (for example "Аксесуари") renders its products
+                          // directly without a duplicate same-name row.
                           const isSameAsGroup = category === g.label;
                           const isOpen = isSameAsGroup || isFiltering || expanded.has(category);
-                          if (!isOpen) return null;
                           const attrDefs = attrDefsFor(items);
 
                           return (
-                            <div key={`products-${category}`}>
-                              {attrDefs.length > 0 && (
-                                <div className="flex gap-2 flex-wrap px-4 py-2 bg-white border-b border-slate-100">
-                                  {attrDefs.map((def) => {
-                                    const filterKey = `${category}|${def.key}`;
-                                    return (
-                                      <select
-                                        key={def.key}
-                                        value={attrFilterValues[filterKey] ?? ""}
-                                        onChange={(e) =>
-                                          setAttrFilterValues((prev) => ({
-                                            ...prev,
-                                            [filterKey]: e.target.value,
-                                          }))
-                                        }
-                                        className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700"
-                                      >
-                                        <option value="">{def.label}: всі</option>
-                                        {def.options.map((v) => (
-                                          <option key={v} value={v}>
-                                            {def.format ? def.format(v) : v}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    );
-                                  })}
-                                </div>
+                            <div key={category}>
+                              {!isSameAsGroup && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleCategory(category)}
+                                  aria-expanded={isOpen}
+                                  className={`w-full flex items-center justify-between px-4 py-2.5 pl-6 text-left transition-all duration-150 ease-out active:scale-[0.995] ${
+                                    isOpen
+                                      ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand/25"
+                                      : "bg-slate-50 text-slate-800 hover:bg-slate-100 active:bg-slate-200"
+                                  }`}
+                                >
+                                  <span className={`text-sm font-medium ${isOpen ? "text-brand" : "text-slate-800"}`}>
+                                    {category}{" "}
+                                    <span className="text-xs font-normal text-slate-400">({items.length})</span>
+                                  </span>
+                                  <span
+                                    className={`transition-all duration-200 ${
+                                      isOpen ? "text-brand rotate-180" : "text-slate-400"
+                                    }`}
+                                  >
+                                    ▾
+                                  </span>
+                                </button>
                               )}
-                              <div className="divide-y divide-slate-100">
-                                {items.map((p) => (
-                                  <ProductRow
-                                    key={p.id}
-                                    product={p}
-                                    qty={cart[p.id] ?? 0}
-                                    onQty={(q) => setQty(p.id, q)}
-                                    onOpen={() => setQuickView(p)}
-                                  />
-                                ))}
+
+                              <div
+                                className={`grid overflow-hidden transition-all duration-300 ease-out ${
+                                  isOpen
+                                    ? "grid-rows-[1fr] opacity-100 pointer-events-auto"
+                                    : "grid-rows-[0fr] opacity-0 pointer-events-none"
+                                }`}
+                                aria-hidden={!isOpen}
+                              >
+                                <div className="min-h-0 overflow-hidden">
+                                  {attrDefs.length > 0 && (
+                                    <div className="flex gap-2 flex-wrap px-4 py-2 bg-white border-b border-slate-100">
+                                      {attrDefs.map((def) => {
+                                        const filterKey = `${category}|${def.key}`;
+                                        return (
+                                          <select
+                                            key={def.key}
+                                            value={attrFilterValues[filterKey] ?? ""}
+                                            onChange={(e) =>
+                                              setAttrFilterValues((prev) => ({
+                                                ...prev,
+                                                [filterKey]: e.target.value,
+                                              }))
+                                            }
+                                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700"
+                                          >
+                                            <option value="">{def.label}: всі</option>
+                                            {def.options.map((v) => (
+                                              <option key={v} value={v}>
+                                                {def.format ? def.format(v) : v}
+                                              </option>
+                                            ))}
+                                          </select>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                  <div className="divide-y divide-slate-100">
+                                    {items.map((p) => (
+                                      <ProductRow
+                                        key={p.id}
+                                        product={p}
+                                        qty={cart[p.id] ?? 0}
+                                        onQty={(q) => setQty(p.id, q)}
+                                        onOpen={() => setQuickView(p)}
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           );
