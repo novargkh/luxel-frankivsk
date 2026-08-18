@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { refineCategory } from "@/lib/categorize";
+import { categorizeProduct } from "@/lib/categorize";
 
 // One-off (re-runnable, idempotent) admin action: re-derives each product's
-// category from its name using the same rules newly-synced products get,
-// so existing catalog items also land in the finer-grained buckets (e.g.
-// floodlights and linear luminaires split out of "LED Освітлення", sockets
-// split out of "Електрофурнітура"). Safe to run repeatedly — products
-// already in the right category are left untouched.
+// category — preferring the rich URL-derived taxonomy (matches luxel.ua's
+// real category menu) and falling back to name-keyword rules for products
+// without a sourceUrl — so existing catalog items land in the same
+// finer-grained buckets newly-synced products get. Safe to run repeatedly —
+// products already in the right category are left untouched.
 export const maxDuration = 60;
 
 const UPDATE_CONCURRENCY = 10;
@@ -21,11 +21,15 @@ export async function POST() {
   }
 
   const products = await prisma.product.findMany({
-    select: { id: true, name: true, category: true },
+    select: { id: true, name: true, category: true, sourceUrl: true },
   });
 
   const changes = products
-    .map((p) => ({ id: p.id, from: p.category, to: refineCategory(p.name, p.category ?? "Інше") }))
+    .map((p) => ({
+      id: p.id,
+      from: p.category,
+      to: categorizeProduct(p.name, p.sourceUrl, p.category ?? "Інше"),
+    }))
     .filter((c) => c.to !== (c.from ?? "Інше"));
 
   for (let i = 0; i < changes.length; i += UPDATE_CONCURRENCY) {

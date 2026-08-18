@@ -5,7 +5,12 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
-import { extractAttributes, similarityScore, type ProductAttributes } from "@/lib/similarity";
+import {
+  extractAttributes,
+  similarityScore,
+  articleNumeric,
+  type ProductAttributes,
+} from "@/lib/similarity";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -51,7 +56,6 @@ export default function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [promoOnly, setPromoOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
-  const [brandFilter, setBrandFilter] = useState("");
   const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "name-asc">(
     "default"
   );
@@ -120,29 +124,33 @@ export default function CatalogPage() {
     return map;
   }, [products]);
 
-  const brandOptions = useMemo(() => {
-    const set = new Set<string>();
-    for (const p of products) {
-      const brand = attributesById.get(p.id)?.series;
-      if (brand) set.add(brand);
-    }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
-  }, [products, attributesById]);
-
+  // Ukrainian-site-style search: matches name, description AND the series
+  // (brand, e.g. AURA/JAZZ/DEBUT/OPERA) and article/SKU extracted from the
+  // name, so searching "opera" or an article code works even though those
+  // aren't literally always substrings shown as separate fields.
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return products.filter((p) => {
-      if (q && !p.name.toLowerCase().includes(q) && !(p.description ?? "").toLowerCase().includes(q)) {
-        return false;
+      if (q) {
+        const attrs = attributesById.get(p.id);
+        const haystack = [p.name, p.description ?? "", attrs?.series ?? "", attrs?.article ?? ""]
+          .join(" ")
+          .toLowerCase();
+        if (!haystack.includes(q)) return false;
       }
       if (categoryFilter && (p.category || UNCATEGORIZED) !== categoryFilter) return false;
       if (promoOnly && !p.isPromo) return false;
       if (inStockOnly && p.stock <= 0) return false;
-      if (brandFilter && attributesById.get(p.id)?.series !== brandFilter) return false;
       return true;
     });
-  }, [products, search, categoryFilter, promoOnly, inStockOnly, brandFilter, attributesById]);
+  }, [products, search, categoryFilter, promoOnly, inStockOnly, attributesById]);
 
+  // Default order groups by series (brand) then by numeric article, instead
+  // of raw insertion order — luxel.ua's article numbering allocates a
+  // contiguous block per color/variant within a series (e.g. OPERA
+  // 2001-2018 = білий, 2101-2108 = чорний, ...), so sorting numerically
+  // keeps every color of the same product line together instead of
+  // interleaving them.
   const sorted = useMemo(() => {
     const arr = [...filtered];
     switch (sortOrder) {
@@ -156,10 +164,25 @@ export default function CatalogPage() {
         arr.sort((a, b) => a.name.localeCompare(b.name, "uk"));
         break;
       default:
+        arr.sort((a, b) => {
+          const aAttrs = attributesById.get(a.id);
+          const bAttrs = attributesById.get(b.id);
+          const aSeries = aAttrs?.series ?? "";
+          const bSeries = bAttrs?.series ?? "";
+          if (aSeries !== bSeries) {
+            if (!aSeries) return 1;
+            if (!bSeries) return -1;
+            return aSeries.localeCompare(bSeries, "uk");
+          }
+          const aArt = articleNumeric(aAttrs?.article ?? null);
+          const bArt = articleNumeric(bAttrs?.article ?? null);
+          if (aArt !== bArt) return aArt - bArt;
+          return a.name.localeCompare(b.name, "uk");
+        });
         break;
     }
     return arr;
-  }, [filtered, sortOrder]);
+  }, [filtered, sortOrder, attributesById]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, Product[]>();
@@ -172,18 +195,13 @@ export default function CatalogPage() {
   }, [sorted]);
 
   const isFiltering =
-    search.trim().length > 0 ||
-    !!categoryFilter ||
-    promoOnly ||
-    inStockOnly ||
-    !!brandFilter;
+    search.trim().length > 0 || !!categoryFilter || promoOnly || inStockOnly;
 
   function resetFilters() {
     setSearch("");
     setCategoryFilter("");
     setPromoOnly(false);
     setInStockOnly(false);
-    setBrandFilter("");
     setSortOrder("default");
   }
 
@@ -192,7 +210,6 @@ export default function CatalogPage() {
   // while the panel is collapsed.
   const activeExtraFilterCount = [
     !!categoryFilter,
-    !!brandFilter,
     promoOnly,
     inStockOnly,
     sortOrder !== "default",
@@ -324,20 +341,6 @@ export default function CatalogPage() {
                 </option>
               ))}
             </select>
-            {brandOptions.length > 1 && (
-              <select
-                value={brandFilter}
-                onChange={(e) => setBrandFilter(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
-              >
-                <option value="">Усі бренди</option>
-                {brandOptions.map((b) => (
-                  <option key={b} value={b}>
-                    {b}
-                  </option>
-                ))}
-              </select>
-            )}
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
@@ -389,23 +392,6 @@ export default function CatalogPage() {
                   </option>
                 ))}
               </select>
-              {brandOptions.length > 1 && (
-                <select
-                  value={brandFilter}
-                  onChange={(e) => {
-                    setBrandFilter(e.target.value);
-                    setMobileFiltersOpen(false);
-                  }}
-                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-                >
-                  <option value="">Усі бренди</option>
-                  {brandOptions.map((b) => (
-                    <option key={b} value={b}>
-                      {b}
-                    </option>
-                  ))}
-                </select>
-              )}
               <select
                 value={sortOrder}
                 onChange={(e) => {

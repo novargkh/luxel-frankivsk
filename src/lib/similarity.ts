@@ -15,6 +15,7 @@ export type ProductAttributes = {
   colorTempK: number | null;
   lengthM: number | null; // метраж — cable/extension-cord length
   gangCount: number | null; // кількість гнізд/клавіш — sockets or switch keys
+  color: string | null; // колір — білий, чорний, кремовий, ...
 };
 
 const BASE_TOKENS = [
@@ -27,6 +28,29 @@ const BASE_RE = new RegExp(`\\b(${BASE_TOKENS.join("|").replace(/\./g, "\\.")})\
 // well-known LED shape families so this doesn't collide with base codes
 // like G9/G4 (small numbers) — shapes always carry a two-digit size.
 const BULB_SHAPE_RE = /\b(A[4-8]\d|G[4-9]\d|C3[0-9]|C5[0-9]|P4[0-5]|R[5-8]\d|MR11|MR16|T[2-4]\d|BXS)\b/i;
+
+// Color/finish words seen across color-variant product lines (OPERA, JAZZ,
+// ...) — masculine and feminine adjective endings both map to one canonical
+// color name so "білий вимикач" and "біла розетка" are recognized as the
+// same color.
+const COLOR_CANONICAL: Record<string, string> = {
+  "білий": "білий",
+  "біла": "білий",
+  "чорний": "чорний",
+  "чорна": "чорний",
+  "кремовий": "кремовий",
+  "кремова": "кремовий",
+  "теракотовий": "теракотовий",
+  "теракотова": "теракотовий",
+  "бронзовий": "бронзовий",
+  "бронзова": "бронзовий",
+  "графітовий": "графітовий",
+  "графітова": "графітовий",
+  "вишневий": "вишневий",
+  "вишнева": "вишневий",
+  "сосна": "сосна",
+};
+const COLOR_RE = new RegExp(`\\b(${Object.keys(COLOR_CANONICAL).join("|")})\\b`, "iu");
 
 const GANG_WORDS: [RegExp, number][] = [
   [/\bодн(?:а|о|оклавіш\w*|омісн\w*)\b/i, 1],
@@ -80,7 +104,22 @@ export function extractAttributes(name: string): ProductAttributes {
     }
   }
 
-  return { article, series, base, bulbShape, wattage, colorTempK, lengthM, gangCount };
+  const colorMatch = name.match(COLOR_RE)?.[1]?.toLowerCase() ?? null;
+  const color = colorMatch ? COLOR_CANONICAL[colorMatch] ?? null : null;
+
+  return { article, series, base, bulbShape, wattage, colorTempK, lengthM, gangCount, color };
+}
+
+// Extracts the leading numeric value from an article/SKU string, e.g.
+// "2007" -> 2007, "CL08R-72" -> 8, "0722" -> 722. Used to order products
+// within a series so color/variant blocks (which luxel.ua allocates as
+// contiguous article ranges) stay grouped instead of interleaving.
+// Missing/unparseable articles sort last.
+export function articleNumeric(article: string | null): number {
+  if (!article) return Number.POSITIVE_INFINITY;
+  const m = article.match(/\d+/);
+  if (!m) return Number.POSITIVE_INFINITY;
+  return parseInt(m[0], 10);
 }
 
 export function similarityScore(a: ProductAttributes, b: ProductAttributes): number {
@@ -93,5 +132,7 @@ export function similarityScore(a: ProductAttributes, b: ProductAttributes): num
   if (a.colorTempK != null && b.colorTempK != null && a.colorTempK === b.colorTempK) score += 3;
   if (a.lengthM != null && b.lengthM != null && Math.abs(a.lengthM - b.lengthM) <= 0.5) score += 3;
   if (a.gangCount != null && b.gangCount != null && a.gangCount === b.gangCount) score += 3;
+  if (a.color && b.color && a.color === b.color) score += 5;
+  else if (a.color && b.color && a.color !== b.color) score -= 5;
   return score;
 }

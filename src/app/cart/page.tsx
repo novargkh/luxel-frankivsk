@@ -197,7 +197,11 @@ export default function CartPage() {
         ) : (
           <>
             <div className="border border-slate-200 bg-white rounded-xl overflow-hidden mb-4">
-              <table className="w-full text-sm">
+              {/* Desktop/tablet: full invoice table (unchanged). Hidden on
+                  mobile — a fixed 5-column table can't reflow on a narrow
+                  screen, which is what made the price crowd into the
+                  wrapped product name there. */}
+              <table className="w-full text-sm hidden sm:table">
                 <thead className="bg-slate-50 text-slate-500 text-xs">
                   <tr>
                     <th className="text-left px-3 py-2 font-medium">Товар</th>
@@ -252,6 +256,52 @@ export default function CartPage() {
                   ))}
                 </tbody>
               </table>
+
+              {/* Mobile: stacked cards — the name gets a full-width line of
+                  its own, and price/qty/sum sit on a second line below it,
+                  so nothing crowds the wrapped product name. */}
+              <div className="sm:hidden divide-y divide-slate-100">
+                {items.map(({ product, quantity }) => (
+                  <div key={product.id} className="p-3">
+                    <div className="flex items-start gap-2 mb-2">
+                      {product.images[0] ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={product.images[0].url}
+                          alt=""
+                          className="w-12 h-12 object-cover rounded shrink-0"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 bg-slate-100 rounded shrink-0" />
+                      )}
+                      <span className="text-sm text-slate-800 flex-1 min-w-0">{product.name}</span>
+                      <button
+                        onClick={() => remove(product.id)}
+                        className="text-xs text-red-500 hover:text-red-700 shrink-0 pt-0.5"
+                      >
+                        Видалити
+                      </button>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pl-[56px]">
+                      <QtyInput
+                        value={quantity}
+                        min={1}
+                        max={product.stock}
+                        onChange={(n) => setQty(product.id, n)}
+                        className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center"
+                      />
+                      <div className="text-right shrink-0">
+                        <div className="text-xs text-slate-500">
+                          {product.price.toLocaleString("uk-UA")} ₴/шт
+                        </div>
+                        <div className="text-sm font-medium text-slate-900">
+                          {(product.price * quantity).toLocaleString("uk-UA")} ₴
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="grid sm:grid-cols-2 gap-4">

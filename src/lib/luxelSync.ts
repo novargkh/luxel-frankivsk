@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { refineCategory } from "@/lib/categorize";
+import { categorizeProduct } from "@/lib/categorize";
 
 // Syncs new products from luxel.ua into the local catalog.
 //
@@ -64,26 +64,6 @@ function parseSitemap(xml: string): SitemapProduct[] {
   return products;
 }
 
-const CATEGORY_BY_URL_SEGMENT: Record<string, string> = {
-  "svetodiodnie--led--lampi": "LED Лампи",
-  "svetodiodnoe--led--osveshhenie": "LED Освітлення",
-  "svetodiodnoe--led--fitoosveshhenie": "Фітоосвітлення",
-  elektrofurnitura: "Електрофурнітура",
-  "-wifi-smart-tovari": "WiFi Smart",
-  udliniteli: "Подовжувачі",
-  aksessuari: "Аксесуари",
-  generatori: "Генератори",
-};
-
-function categoryFromUrl(productUrl: string): string {
-  try {
-    const segment = new URL(productUrl).pathname.replace(/^\//, "").split("/")[0];
-    return CATEGORY_BY_URL_SEGMENT[segment] ?? "Інше";
-  } catch {
-    return "Інше";
-  }
-}
-
 async function fetchPrice(productUrl: string): Promise<number | null> {
   try {
     const res = await fetch(productUrl, {
@@ -143,7 +123,7 @@ export async function syncFromLuxel(): Promise<LuxelSyncResult> {
           return;
         }
         try {
-          const category = refineCategory(p.name, categoryFromUrl(p.url));
+          const category = categorizeProduct(p.name, p.url, "Інше");
           await prisma.product.create({
             data: {
               name: p.name,
