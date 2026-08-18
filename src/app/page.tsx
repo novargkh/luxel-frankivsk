@@ -11,7 +11,7 @@ import {
   articleNumeric,
   type ProductAttributes,
 } from "@/lib/similarity";
-import { getCategoryTree } from "@/lib/categorize";
+import { getCategoryTree, normalizeCategory } from "@/lib/categorize";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -332,7 +332,7 @@ export default function CatalogPage() {
       // Attribute filters are namespaced per category ("category|attrKey")
       // since each expanded tree branch has its own independent set —
       // only the filters for THIS product's own category ever apply to it.
-      const cat = p.category || UNCATEGORIZED;
+      const cat = normalizeCategory(p.category);
       for (const [key, val] of Object.entries(attrFilterValues)) {
         if (!val) continue;
         const [filterCat, attrKey] = key.split("|");
@@ -393,7 +393,7 @@ export default function CatalogPage() {
   const grouped = useMemo(() => {
     const map = new Map<string, Product[]>();
     for (const p of sorted) {
-      const key = p.category || UNCATEGORIZED;
+      const key = normalizeCategory(p.category);
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(p);
     }
@@ -473,9 +473,9 @@ export default function CatalogPage() {
   }
 
   function similarProducts(p: Product) {
-    const cat = p.category || UNCATEGORIZED;
+    const cat = normalizeCategory(p.category);
     const baseAttrs = attributesById.get(p.id) ?? extractAttributes(p.name);
-    const candidates = products.filter((x) => x.id !== p.id && (x.category || UNCATEGORIZED) === cat);
+    const candidates = products.filter((x) => x.id !== p.id && normalizeCategory(x.category) === cat);
     const scored = candidates.map((c) => ({
       product: c,
       score: similarityScore(baseAttrs, attributesById.get(c.id) ?? extractAttributes(c.name)),
@@ -701,24 +701,32 @@ export default function CatalogPage() {
                   {groupOpen && (
                     <div className="divide-y divide-slate-100">
                       {g.categories.map(([category, items]) => {
-                        const isOpen = isFiltering || expanded.has(category);
+                        // Some products only have the broad top-level category
+                        // (for example "Аксесуари"). In that case the category
+                        // name is identical to the group name, so the group
+                        // should show those products directly instead of
+                        // rendering a redundant "Аксесуари -> Аксесуари" row.
+                        const isSameAsGroup = category === g.label;
+                        const isOpen = isSameAsGroup || isFiltering || expanded.has(category);
                         const attrDefs = attrDefsFor(items);
                         return (
                           <div key={category}>
-                            <button
-                              onClick={() => toggleCategory(category)}
-                              className="w-full flex items-center justify-between px-4 py-2.5 pl-6 bg-slate-50 hover:bg-slate-100 text-left"
-                            >
-                              <span className="text-sm font-medium text-slate-800">
-                                {category}{" "}
-                                <span className="text-xs font-normal text-slate-400">({items.length})</span>
-                              </span>
-                              <span
-                                className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                            {!isSameAsGroup && (
+                              <button
+                                onClick={() => toggleCategory(category)}
+                                className="w-full flex items-center justify-between px-4 py-2.5 pl-6 bg-slate-50 hover:bg-slate-100 text-left"
                               >
-                                ▾
-                              </span>
-                            </button>
+                                <span className="text-sm font-medium text-slate-800">
+                                  {category}{" "}
+                                  <span className="text-xs font-normal text-slate-400">({items.length})</span>
+                                </span>
+                                <span
+                                  className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
+                                >
+                                  ▾
+                                </span>
+                              </button>
+                            )}
 
                             {isOpen && (
                               <div>
@@ -977,7 +985,7 @@ function QuickViewModal({
 
           <div className="flex flex-col">
             {product.category && (
-              <span className="text-xs text-slate-400 mb-1">{product.category}</span>
+              <span className="text-xs text-slate-400 mb-1">{normalizeCategory(product.category)}</span>
             )}
             {product.description && (
               <p className="text-sm text-slate-600 mb-2">{product.description}</p>

@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import fs from "fs";
 import path from "path";
+import { categorizeProduct } from "../src/lib/categorize";
 
 const prisma = new PrismaClient();
 
@@ -80,24 +81,25 @@ async function main() {
       for (let i = 0; i < items.length; i += BATCH_SIZE) {
         const batch = items.slice(i, i + BATCH_SIZE);
         await Promise.all(
-          batch.map((item) =>
-            prisma.product.create({
+          batch.map((item) => {
+            const category = categorizeProduct(item.name, item.sourceUrl, item.category);
+            return prisma.product.create({
               data: {
                 name: item.name,
                 description: item.subcategory
-                  ? `${item.category} — ${item.subcategory}`
-                  : item.category,
+                  ? `${category} — ${item.subcategory}`
+                  : category,
                 price: item.price,
                 stock: 20,
-                category: item.category,
+                category,
                 isActive: true,
                 sourceUrl: item.sourceUrl,
                 images: {
                   create: [{ url: item.imagePath }],
                 },
               },
-            })
-          )
+            });
+          })
         );
         if ((i / BATCH_SIZE) % 10 === 0) {
           console.log(`  ...${Math.min(i + BATCH_SIZE, items.length)}/${items.length}`);

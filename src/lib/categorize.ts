@@ -37,22 +37,22 @@ export function refineCategory(name: string, fallback: string): string {
 // seg1-level fallback name instead.
 
 const TOP_LEVEL_FALLBACK: Record<string, string> = {
-  "-wifi-smart-tovari": "WiFi Smart",
-  aksessuari: "Аксесуари",
+  "svetodiodnie--led--lampi": "Світлодіодні (LED) Лампи",
+  "svetodiodnoe--led--osveshhenie": "Світлодіодне (LED) освітлення",
+  "svetodiodnoe--led--fitoosveshhenie": "Світлодіодне (LED) Фітоосвітлення",
   elektrofurnitura: "Електрофурнітура",
-  generatori: "Генератори",
-  "svetodiodnie--led--lampi": "LED Лампи",
-  "svetodiodnoe--led--fitoosveshhenie": "LED Фітоосвітлення",
-  "svetodiodnoe--led--osveshhenie": "LED Освітлення",
+  "-wifi-smart-tovari": "WiFi смарт товари",
   udliniteli: "Подовжувачі",
+  aksessuari: "Аксесуари",
+  generatori: "Генератори та акумулятори",
 };
 
 const SEG2_MAP: Record<string, Record<string, string>> = {
   aksessuari: {
-    adapter: "Перехідники",
-    bra: "Бра",
-    kauchuk: "Каучукові вироби",
-    shtepsel: "Штепселі",
+    adapter: "Трійники та перехідники",
+    bra: "Вимикачі для бра",
+    kauchuk: "Каучукові вилки та штепселя",
+    shtepsel: "Штепселя",
     vilki: "Вилки",
   },
   udliniteli: {
@@ -64,7 +64,7 @@ const SEG2_MAP: Record<string, Record<string, string>> = {
   },
   "svetodiodnie--led--lampi": {
     led_lampy: "LED Лампи",
-    "filamentnie-lampi": "LED Філамент-лампи",
+    "filamentnie-lampi": "LED філаментні лампи",
     "led-lampi-visokoj-moshhnosti": "LED Лампи високої потужності",
     "led-lampi-srednej-moshhnosti": "LED Лампи середньої потужності",
     "led-t8": "LED Лампи T8",
@@ -85,14 +85,14 @@ const SEG2_MAP: Record<string, Record<string, string>> = {
     "led-avtonomnoe-osveshhenie": "LED Автономне освітлення",
     prozhektory: "Прожектори",
     "led-fonari": "LED Ліхтарі",
-    "akcentnoe-osveshhenie": "Акцентне освітлення",
+    "akcentnoe-osveshhenie": "Акцентне Освітлення",
     "tochechnoe-osveshhenie": "Точкове освітлення",
     "sumerechnie-datchiki": "Сутінкові датчики",
     "datchiki-dvizhenija": "Датчики руху",
     "led-nochniki": "LED Нічники",
   },
   elektrofurnitura: {
-    "pilevlagozashhitnaja-serija": "Пилевологозахищена серія",
+    "pilevlagozashhitnaja-serija": "Пиловологозахисна серія",
   },
 };
 
@@ -100,21 +100,21 @@ const SEG2_MAP: Record<string, Record<string, string>> = {
 // "прихована"/"відкрита" установка, the actual product type is seg3.
 const ELEKTROFURNITURA_SEG3: Record<string, Record<string, string>> = {
   "skritaja-ustanovka": {
-    "vikljuchateli-skritoj-ustanovki": "Вимикачі прихованої установки",
-    "rozetki-skritoj-ustanovki-": "Розетки прихованої установки",
+    "vikljuchateli-skritoj-ustanovki": "Вимикачі (прихована установка)",
+    "rozetki-skritoj-ustanovki-": "Розетки (прихована установка)",
     "rozetki--telefonnie--kompjuternie--televizionnie--skritaja-ustanovka":
-      "Розетки телефонні/комп'ютерні/телевізійні",
-    ramki: "Рамки",
-    "ramki-stekljannie-serii-jazz": "Рамки скляні JAZZ",
-    "reguljatori-jarkosti-skritaja-ustanovka": "Регулятори яскравості",
-    "knopki-zvonka-skritaja-ustanovka": "Кнопки дзвінка",
+      "Розетки телефонні, комп'ютерні, телевізійні (прихована установка)",
+    ramki: "Рамки (прихована установка)",
+    "ramki-stekljannie-serii-jazz": "Рамки скляні серії jazz (прихована установка)",
+    "reguljatori-jarkosti-skritaja-ustanovka": "Регулятори яскравості (прихована установка)",
+    "knopki-zvonka-skritaja-ustanovka": "Кнопки дзвінка (прихована установка)",
   },
   "otkritaja-ustanovka": {
-    "rozetki-otkritaja-ustanovka": "Розетки відкритої установки",
-    "vikljuchateli-otkritaja-ustanovka": "Вимикачі відкритої установки",
-    "bloki--rozetka-vikljuchatel-otkritaja-ustanovka": "Блоки розетка-вимикач",
+    "rozetki-otkritaja-ustanovka": "Розетки",
+    "vikljuchateli-otkritaja-ustanovka": "Вимикачі",
+    "bloki--rozetka-vikljuchatel-otkritaja-ustanovka": "Блоки (розетка + вимикач)",
     "rozetki--telefonnie--televizionnie-otkritaja-ustanovka":
-      "Розетки телефонні/телевізійні (відкрита)",
+      "Розетки (телефонні, телевізійні)",
   },
 };
 
@@ -122,6 +122,42 @@ const ELEKTROFURNITURA_SEG2_FALLBACK: Record<string, string> = {
   "skritaja-ustanovka": "Електрофурнітура прихованої установки",
   "otkritaja-ustanovka": "Електрофурнітура відкритої установки",
 };
+
+// Existing products may still contain labels from the first version of the
+// taxonomy. Keep the UI and future syncs on one canonical vocabulary without
+// requiring a destructive database migration.
+const CATEGORY_ALIASES: Record<string, string> = {
+  "LED Лампи": TOP_LEVEL_FALLBACK["svetodiodnie--led--lampi"],
+  "LED Освітлення": TOP_LEVEL_FALLBACK["svetodiodnoe--led--osveshhenie"],
+  "LED Фітоосвітлення": TOP_LEVEL_FALLBACK["svetodiodnoe--led--fitoosveshhenie"],
+  "Фітоосвітлення": TOP_LEVEL_FALLBACK["svetodiodnoe--led--fitoosveshhenie"],
+  "WiFi Smart": TOP_LEVEL_FALLBACK["-wifi-smart-tovari"],
+  "Генератори": TOP_LEVEL_FALLBACK.generatori,
+  "Акцентне освітлення": "Акцентне Освітлення",
+  "LED філамент-лампи": "LED філаментні лампи",
+  Перехідники: "Трійники та перехідники",
+  Бра: "Вимикачі для бра",
+  "Каучукові вироби": "Каучукові вилки та штепселя",
+  Штепселі: "Штепселя",
+  "Пилевологозахищена серія": "Пиловологозахисна серія",
+  "Блоки розетка-вимикач": "Блоки (розетка + вимикач)",
+  "Вимикачі прихованої установки": "Вимикачі (прихована установка)",
+  "Розетки прихованої установки": "Розетки (прихована установка)",
+  "Розетки відкритої установки": "Розетки",
+  "Вимикачі відкритої установки": "Вимикачі",
+  "Рамки": "Рамки (прихована установка)",
+  "Рамки скляні JAZZ": "Рамки скляні серії jazz (прихована установка)",
+  "Кнопки дзвінка": "Кнопки дзвінка (прихована установка)",
+  "Розетки телефонні/комп'ютерні/телевізійні":
+    "Розетки телефонні, комп'ютерні, телевізійні (прихована установка)",
+  "Розетки телефонні/телевізійні (відкрита)": "Розетки (телефонні, телевізійні)",
+};
+
+export function normalizeCategory(category: string | null | undefined): string {
+  const value = category?.trim();
+  if (!value) return "Інше";
+  return CATEGORY_ALIASES[value] ?? value;
+}
 
 // Derives a category directly from a luxel.ua product URL's path segments.
 // Returns null if the URL can't be parsed or its top segment isn't one we
@@ -204,7 +240,7 @@ export function categorizeProduct(
   existingFallback: string
 ): string {
   const urlCategory = sourceUrl ? deriveCategoryFromUrl(sourceUrl) : null;
-  const base = urlCategory ?? refineCategory(name, existingFallback);
+  const base = urlCategory ?? refineCategory(name, normalizeCategory(existingFallback));
 
   const n = name.toLowerCase();
   if (n.includes("прожектор")) return "Прожектори";
