@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
+import { parseCsv } from "@/lib/csv";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -46,8 +47,17 @@ export default function AdminProductsPage() {
   const [recategorizeMsg, setRecategorizeMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
     null
   );
+  const [importingPackaging, setImportingPackaging] = useState(false);
+  const [importPackagingMsg, setImportPackagingMsg] = useState<
+    { type: "ok" | "error"; text: string } | null
+  >(null);
+  const [syncingSpecs, setSyncingSpecs] = useState(false);
+  const [syncSpecsMsg, setSyncSpecsMsg] = useState<{ type: "ok" | "error"; text: string } | null>(
+    null
+  );
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
+  const packagingInputRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     setLoading(true);
@@ -227,6 +237,88 @@ export default function AdminProductsPage() {
     }
   }
 
+  // Parses the uploaded packaging/price CSV in the browser (so we never
+  // have to trust a raw file upload server-side) and POSTs just the rows
+  // as structured data — matching to products happens server-side by
+  // article code.
+  async function importPackagingCsv(file: File) {
+    setImportingPackaging(true);
+    setImportPackagingMsg(null);
+    try {
+      const text = await file.text();
+      const table = parseCsv(text);
+      if (table.length < 2) {
+        setImportPackagingMsg({ type: "error", text: "Файл порожній або має невірний формат" });
+        return;
+      }
+      const headers = table[0].map((h) => h.trim().toLowerCase());
+      const findCol = (needle: string) => headers.findIndex((h) => h.includes(needle));
+      const articleCol = findCol("артикул");
+      const packCol = headers.findIndex((h) => h.includes("упаков"));
+      const boxCol = headers.findIndex((h) => h.includes("ящик"));
+      if (articleCol === -1) {
+        setImportPackagingMsg({
+          type: "error",
+          text: "Не знайдено колонку \"Артикул\" у файлі",
+        });
+        return;
+      }
+
+      const rows = table.slice(1).map((r) => ({
+        article: r[articleCol] ?? "",
+        packQty: packCol !== -1 && r[packCol]?.trim() ? Number(r[packCol]) || null : null,
+        boxQty: boxCol !== -1 && r[boxCol]?.trim() ? Number(r[boxCol]) || null : null,
+      }));
+
+      const res = await fetch("/api/admin/import-packaging", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setImportPackagingMsg({ type: "error", text: data.error ?? "Не вдалося імпортувати файл" });
+        return;
+      }
+      setImportPackagingMsg({
+        type: "ok",
+        text: `Рядків у файлі: ${data.csvRows}, зіставлено товарів: ${data.matched} (точно: ${data.directMatched}, за кодом у назві: ${data.fallbackMatched}), оновлено: ${data.updated}, без збігу: ${data.unmatchedProducts}`,
+      });
+      load();
+    } catch {
+      setImportPackagingMsg({ type: "error", text: "Не вдалося прочитати або надіслати файл" });
+    } finally {
+      setImportingPackaging(false);
+      if (packagingInputRef.current) packagingInputRef.current.value = "";
+    }
+  }
+
+  async function syncSpecs() {
+    setSyncingSpecs(true);
+    setSyncSpecsMsg(null);
+    try {
+      const res = await fetch("/api/admin/sync-specs", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setSyncSpecsMsg({ type: "error", text: data.error ?? "Не вдалося оновити характеристики" });
+        return;
+      }
+      const parts = [`Оброблено: ${data.processedThisRun}`, `оновлено: ${data.updated}`];
+      if (data.remaining > 0) {
+        parts.push(`залишилось: ${data.remaining} — натисніть ще раз`);
+      }
+      if (data.failed > 0) {
+        parts.push(`не вдалося: ${data.failed}`);
+      }
+      setSyncSpecsMsg({ type: "ok", text: parts.join(", ") });
+      load();
+    } catch {
+      setSyncSpecsMsg({ type: "error", text: "Не вдалося з'єднатися з сервером" });
+    } finally {
+      setSyncingSpecs(false);
+    }
+  }
+
   async function saveStock(id: string) {
     const value = stockDrafts[id];
     if (value === undefined) return;
@@ -260,10 +352,36 @@ export default function AdminProductsPage() {
             <button
               onClick={recategorize}
               disabled={recategorizing}
-              title="Розкладає товари з існуючих великих категорій (LED Освітлення, Електрофурнітура) по вужчих: Прожектори, Світильники лінійні, Розетки"
+              title="Перевизначає категорію кожного товару за структурою меню luxel.ua (за посиланням на сторінку товару), з уточненням за ключовими словами в назві"
               className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
             >
               {recategorizing ? "Оновлення..." : "Оновити категорії"}
+            </button>
+            <button
+              onClick={syncSpecs}
+              disabled={syncingSpecs}
+              title="Завантажує повну таблицю характеристик з картки товару на luxel.ua для кожного товару"
+              className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              {syncingSpecs ? "Оновлення..." : "Оновити характеристики"}
+            </button>
+            <input
+              ref={packagingInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) importPackagingCsv(file);
+              }}
+            />
+            <button
+              onClick={() => packagingInputRef.current?.click()}
+              disabled={importingPackaging}
+              title="Імпортує кількість одиниць в упаковці та в ящику з CSV-файлу, зіставляючи товари за артикулом"
+              className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              {importingPackaging ? "Імпорт..." : "Імпортувати упаковку (CSV)"}
             </button>
             <button
               onClick={startCreate}
@@ -273,6 +391,28 @@ export default function AdminProductsPage() {
             </button>
           </div>
         </div>
+
+        {importPackagingMsg && (
+          <div
+            className={`mb-4 text-sm rounded-lg px-3 py-2 ${
+              importPackagingMsg.type === "ok"
+                ? "bg-emerald-50 text-emerald-700"
+                : "bg-red-50 text-red-600"
+            }`}
+          >
+            {importPackagingMsg.text}
+          </div>
+        )}
+
+        {syncSpecsMsg && (
+          <div
+            className={`mb-4 text-sm rounded-lg px-3 py-2 ${
+              syncSpecsMsg.type === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+            }`}
+          >
+            {syncSpecsMsg.text}
+          </div>
+        )}
 
         {syncMsg && (
           <div

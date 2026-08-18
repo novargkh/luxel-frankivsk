@@ -74,6 +74,15 @@ model Product {
   // re-adding the same product on a later sync. Null for products the
   // admin created by hand.
   sourceUrl   String?   @unique
+  // Packaging quantities imported from the wholesale price/packaging CSV
+  // (matched to products by article code) — how many units come in one
+  // retail pack, and how many packs/units come in one shipping box.
+  packQty     Int?
+  boxQty      Int?
+  // Full "Всі характеристики" spec table scraped from the product's
+  // luxel.ua page ({label: value}), shown via the "Характеристики" button.
+  // Null until the admin runs the specs sync.
+  specs       Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

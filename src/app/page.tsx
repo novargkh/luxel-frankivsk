@@ -11,6 +11,7 @@ import {
   articleNumeric,
   type ProductAttributes,
 } from "@/lib/similarity";
+import { getCategoryTree } from "@/lib/categorize";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -24,6 +25,9 @@ type Product = {
   isPromo: boolean;
   promoText: string | null;
   isActive: boolean;
+  packQty: number | null;
+  boxQty: number | null;
+  specs: Record<string, string> | null;
   images: ProductImage[];
 };
 
@@ -31,6 +35,7 @@ type Announcement = { id: string; title: string; body: string; createdAt: string
 type Shop = { id: string; name: string; address: string };
 
 const UNCATEGORIZED = "Інше";
+const CATEGORY_TREE = getCategoryTree();
 
 function StockBadge({ stock }: { stock: number }) {
   const inStock = stock > 0;
@@ -44,6 +49,93 @@ function StockBadge({ stock }: { stock: number }) {
   );
 }
 
+// Шт. в упаковці / шт. в ящику — imported from the wholesale packaging CSV,
+// matched to products by article. Only rendered once that data exists.
+function PackagingInfo({
+  packQty,
+  boxQty,
+  className,
+}: {
+  packQty: number | null;
+  boxQty: number | null;
+  className?: string;
+}) {
+  if (!packQty && !boxQty) return null;
+  const parts: string[] = [];
+  if (packQty) parts.push(`Уп: ${packQty} шт`);
+  if (boxQty) parts.push(`Ящ: ${boxQty} шт`);
+  return (
+    <span className={`text-[11px] text-slate-400 whitespace-nowrap ${className ?? ""}`}>
+      {parts.join(" · ")}
+    </span>
+  );
+}
+
+function SpecsButton({ onClick, className }: { onClick: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className={`text-xs text-brand border border-brand/40 rounded-lg px-2 py-1 hover:bg-red-50 whitespace-nowrap ${className ?? ""}`}
+    >
+      Характеристики
+    </button>
+  );
+}
+
+// Full "Всі характеристики" table scraped from the product's luxel.ua page
+// (admin-populated via "Оновити характеристики"). Renders on top of
+// QuickViewModal when opened from there, hence the higher z-index.
+function SpecsModal({ product, onClose }: { product: Product; onClose: () => void }) {
+  const entries = product.specs ? Object.entries(product.specs) : [];
+  return (
+    <div
+      className="fixed inset-0 bg-slate-900/50 z-30 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-xl max-w-md w-full max-h-[80vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between p-4 border-b border-slate-100">
+          <div>
+            <h2 className="text-base font-semibold text-slate-900">Характеристики</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{product.name}</p>
+          </div>
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-900 text-lg shrink-0 ml-4"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="p-4">
+          {entries.length > 0 ? (
+            <dl className="space-y-1.5">
+              {entries.map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex justify-between gap-3 text-sm border-b border-slate-50 pb-1.5"
+                >
+                  <dt className="text-slate-500">{label}</dt>
+                  <dd className="text-slate-900 text-right">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : (
+            <p className="text-sm text-slate-500">
+              Характеристики для цього товару ще не завантажені.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -53,7 +145,16 @@ export default function CatalogPage() {
   const [showAnnouncements, setShowAnnouncements] = useState(true);
 
   const [search, setSearch] = useState("");
+  // Category drill-down: pick a top-level group first (e.g. "LED
+  // Освітлення"), which reveals its specific subcategories (e.g. "LED
+  // Прожектори") to narrow further — mirrors luxel.ua's own two-level
+  // category menu instead of one long flat list.
+  const [categoryGroupFilter, setCategoryGroupFilter] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
+  // Extra attribute filters (потужність/колба/цоколь for lamps, колір for
+  // electrofurniture, etc.) that only appear once a category is chosen —
+  // keyed by the ProductAttributes field they filter on.
+  const [attrFilterValues, setAttrFilterValues] = useState<Record<string, string>>({});
   const [promoOnly, setPromoOnly] = useState(false);
   const [inStockOnly, setInStockOnly] = useState(false);
   const [sortOrder, setSortOrder] = useState<"default" | "price-asc" | "price-desc" | "name-asc">(
@@ -61,6 +162,7 @@ export default function CatalogPage() {
   );
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [quickView, setQuickView] = useState<Product | null>(null);
+  const [specsProduct, setSpecsProduct] = useState<Product | null>(null);
   // On mobile the extra filter controls (everything but search) live in a
   // collapsible panel so they don't permanently eat screen space in the
   // sticky bar — picking a value applies it and closes the panel.
@@ -110,19 +212,84 @@ export default function CatalogPage() {
     loadData();
   }, []);
 
-  const categories = useMemo(() => {
-    const set = new Set(products.map((p) => p.category || UNCATEGORIZED));
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "uk"));
+  // category (fine-grained string, e.g. "LED Прожектори") -> its top-level
+  // group key (e.g. "svetodiodnoe--led--osveshhenie") — built once from the
+  // same tree the group/subcategory <select>s below are populated from.
+  const categoryToGroup = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of CATEGORY_TREE) for (const c of g.categories) map.set(c, g.key);
+    return map;
+  }, []);
+
+  // Only offer groups/subcategories that actually have products right now
+  // (the tree itself is static and covers every category the URL-based
+  // classifier can ever produce).
+  const groupsWithProducts = useMemo(() => {
+    const present = new Set(products.map((p) => p.category || UNCATEGORIZED));
+    return CATEGORY_TREE.map((g) => ({
+      ...g,
+      categories: g.categories.filter((c) => present.has(c)),
+    })).filter((g) => g.categories.length > 0);
   }, [products]);
 
+  const activeGroup = groupsWithProducts.find((g) => g.key === categoryGroupFilter);
+
   // Regex-extracted attributes (series/brand, article, цоколь, колба, etc.)
-  // per product — used both for smarter "similar products" ranking and to
-  // power the brand filter dropdown below.
+  // per product — used for "similar products" ranking, search, and to
+  // power the per-category attribute filters below.
   const attributesById = useMemo(() => {
     const map = new Map<string, ProductAttributes>();
     for (const p of products) map.set(p.id, extractAttributes(p.name));
     return map;
   }, [products]);
+
+  // Products currently in scope by category alone (ignoring search/promo/
+  // stock/attribute filters) — the pool the per-category attribute filters
+  // (потужність/колба/цоколь, колір, довжина кабелю, ...) are derived from,
+  // same as luxel.ua only shows those once you're inside a category.
+  const categoryScopeProducts = useMemo(() => {
+    if (!categoryFilter && !categoryGroupFilter) return [];
+    return products.filter((p) => {
+      const cat = p.category || UNCATEGORIZED;
+      if (categoryFilter) return cat === categoryFilter;
+      return categoryToGroup.get(cat) === categoryGroupFilter;
+    });
+  }, [products, categoryFilter, categoryGroupFilter, categoryToGroup]);
+
+  const ATTR_FILTER_DEFS: {
+    key: keyof ProductAttributes;
+    label: string;
+    format?: (v: string) => string;
+  }[] = [
+    { key: "series", label: "Серія" },
+    { key: "color", label: "Колір", format: (v) => v[0].toUpperCase() + v.slice(1) },
+    { key: "base", label: "Цоколь" },
+    { key: "bulbShape", label: "Колба" },
+    { key: "wattage", label: "Потужність", format: (v) => `${v} Вт` },
+    { key: "colorTempK", label: "Температура кольору", format: (v) => `${v}K` },
+    { key: "lengthM", label: "Довжина кабелю", format: (v) => `${v} м` },
+    { key: "gangCount", label: "Кількість гнізд/клавіш", format: (v) => v },
+  ];
+
+  const activeAttrFilters = useMemo(() => {
+    if (categoryScopeProducts.length === 0) return [];
+    return ATTR_FILTER_DEFS.map((def) => {
+      const values = new Set<string>();
+      for (const p of categoryScopeProducts) {
+        const v = attributesById.get(p.id)?.[def.key];
+        if (v !== null && v !== undefined) values.add(String(v));
+      }
+      if (values.size < 2) return null;
+      const sortedValues = Array.from(values).sort((a, b) => {
+        const na = Number(a);
+        const nb = Number(b);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.localeCompare(b, "uk");
+      });
+      return { ...def, options: sortedValues };
+    }).filter((d): d is NonNullable<typeof d> => d !== null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categoryScopeProducts, attributesById]);
 
   // Ukrainian-site-style search: matches name, description AND the series
   // (brand, e.g. AURA/JAZZ/DEBUT/OPERA) and article/SKU extracted from the
@@ -138,12 +305,31 @@ export default function CatalogPage() {
           .toLowerCase();
         if (!haystack.includes(q)) return false;
       }
-      if (categoryFilter && (p.category || UNCATEGORIZED) !== categoryFilter) return false;
+      const cat = p.category || UNCATEGORIZED;
+      if (categoryFilter && cat !== categoryFilter) return false;
+      if (!categoryFilter && categoryGroupFilter && categoryToGroup.get(cat) !== categoryGroupFilter) {
+        return false;
+      }
       if (promoOnly && !p.isPromo) return false;
       if (inStockOnly && p.stock <= 0) return false;
+      for (const [key, val] of Object.entries(attrFilterValues)) {
+        if (!val) continue;
+        const attrVal = attributesById.get(p.id)?.[key as keyof ProductAttributes];
+        if (attrVal === null || attrVal === undefined || String(attrVal) !== val) return false;
+      }
       return true;
     });
-  }, [products, search, categoryFilter, promoOnly, inStockOnly, attributesById]);
+  }, [
+    products,
+    search,
+    categoryFilter,
+    categoryGroupFilter,
+    categoryToGroup,
+    promoOnly,
+    inStockOnly,
+    attrFilterValues,
+    attributesById,
+  ]);
 
   // Default order groups by series (brand) then by numeric article, instead
   // of raw insertion order — luxel.ua's article numbering allocates a
@@ -194,12 +380,21 @@ export default function CatalogPage() {
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "uk"));
   }, [sorted]);
 
+  const activeAttrFilterCount = Object.values(attrFilterValues).filter(Boolean).length;
+
   const isFiltering =
-    search.trim().length > 0 || !!categoryFilter || promoOnly || inStockOnly;
+    search.trim().length > 0 ||
+    !!categoryFilter ||
+    !!categoryGroupFilter ||
+    promoOnly ||
+    inStockOnly ||
+    activeAttrFilterCount > 0;
 
   function resetFilters() {
     setSearch("");
+    setCategoryGroupFilter("");
     setCategoryFilter("");
+    setAttrFilterValues({});
     setPromoOnly(false);
     setInStockOnly(false);
     setSortOrder("default");
@@ -208,12 +403,10 @@ export default function CatalogPage() {
   // Count of "extra" filters (everything but search) — shown as a badge on
   // the mobile "Фільтри" toggle so it's clear something is active even
   // while the panel is collapsed.
-  const activeExtraFilterCount = [
-    !!categoryFilter,
-    promoOnly,
-    inStockOnly,
-    sortOrder !== "default",
-  ].filter(Boolean).length;
+  const activeExtraFilterCount =
+    [!!categoryFilter, !!categoryGroupFilter, promoOnly, inStockOnly, sortOrder !== "default"].filter(
+      Boolean
+    ).length + activeAttrFilterCount;
 
   function toggleCategory(cat: string) {
     setExpanded((prev) => {
@@ -327,20 +520,61 @@ export default function CatalogPage() {
             </button>
           </div>
 
-          {/* Desktop: full filter row, always visible (unchanged) */}
+          {/* Desktop: full filter row, always visible. Category is a
+              two-step drill-down (group, then its subcategories) instead
+              of one flat list — picking a group reveals its subcategory
+              select right next to it, same as luxel.ua's own menu. */}
           <div className="hidden sm:flex gap-2 items-center flex-wrap mt-2">
             <select
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
+              value={categoryGroupFilter}
+              onChange={(e) => {
+                setCategoryGroupFilter(e.target.value);
+                setCategoryFilter("");
+                setAttrFilterValues({});
+              }}
               className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
             >
               <option value="">Усі категорії</option>
-              {categories.map((c) => (
-                <option key={c} value={c}>
-                  {c}
+              {groupsWithProducts.map((g) => (
+                <option key={g.key} value={g.key}>
+                  {g.label}
                 </option>
               ))}
             </select>
+            {activeGroup && activeGroup.categories.length > 1 && (
+              <select
+                value={categoryFilter}
+                onChange={(e) => {
+                  setCategoryFilter(e.target.value);
+                  setAttrFilterValues({});
+                }}
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
+              >
+                <option value="">Усі в «{activeGroup.label}»</option>
+                {activeGroup.categories.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
+            {activeAttrFilters.map((def) => (
+              <select
+                key={def.key}
+                value={attrFilterValues[def.key] ?? ""}
+                onChange={(e) =>
+                  setAttrFilterValues((prev) => ({ ...prev, [def.key]: e.target.value }))
+                }
+                className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
+              >
+                <option value="">{def.label}: будь-яка</option>
+                {def.options.map((v) => (
+                  <option key={v} value={v}>
+                    {def.format ? def.format(v) : v}
+                  </option>
+                ))}
+              </select>
+            ))}
             <select
               value={sortOrder}
               onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
@@ -378,20 +612,55 @@ export default function CatalogPage() {
           {mobileFiltersOpen && (
             <div className="sm:hidden mt-2 border border-slate-200 rounded-lg p-3 bg-white space-y-2">
               <select
-                value={categoryFilter}
+                value={categoryGroupFilter}
                 onChange={(e) => {
-                  setCategoryFilter(e.target.value);
-                  setMobileFiltersOpen(false);
+                  setCategoryGroupFilter(e.target.value);
+                  setCategoryFilter("");
+                  setAttrFilterValues({});
                 }}
                 className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
               >
                 <option value="">Усі категорії</option>
-                {categories.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
+                {groupsWithProducts.map((g) => (
+                  <option key={g.key} value={g.key}>
+                    {g.label}
                   </option>
                 ))}
               </select>
+              {activeGroup && activeGroup.categories.length > 1 && (
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => {
+                    setCategoryFilter(e.target.value);
+                    setAttrFilterValues({});
+                  }}
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Усі в «{activeGroup.label}»</option>
+                  {activeGroup.categories.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeAttrFilters.map((def) => (
+                <select
+                  key={def.key}
+                  value={attrFilterValues[def.key] ?? ""}
+                  onChange={(e) =>
+                    setAttrFilterValues((prev) => ({ ...prev, [def.key]: e.target.value }))
+                  }
+                  className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">{def.label}: будь-яка</option>
+                  {def.options.map((v) => (
+                    <option key={v} value={v}>
+                      {def.format ? def.format(v) : v}
+                    </option>
+                  ))}
+                </select>
+              ))}
               <select
                 value={sortOrder}
                 onChange={(e) => {
@@ -484,6 +753,7 @@ export default function CatalogPage() {
                           qty={cart[p.id] ?? 0}
                           onQty={(q) => setQty(p.id, q)}
                           onOpen={() => setQuickView(p)}
+                          onShowSpecs={() => setSpecsProduct(p)}
                         />
                       ))}
                     </div>
@@ -525,7 +795,12 @@ export default function CatalogPage() {
           onClose={() => setQuickView(null)}
           similar={similarProducts(quickView)}
           onSelectSimilar={(p) => setQuickView(p)}
+          onShowSpecs={() => setSpecsProduct(quickView)}
         />
+      )}
+
+      {specsProduct && (
+        <SpecsModal product={specsProduct} onClose={() => setSpecsProduct(null)} />
       )}
     </div>
   );
@@ -536,11 +811,13 @@ function ProductRow({
   qty,
   onQty,
   onOpen,
+  onShowSpecs,
 }: {
   product: Product;
   qty: number;
   onQty: (q: number) => void;
   onOpen: () => void;
+  onShowSpecs: () => void;
 }) {
   const qtyControls = (
     <div className="shrink-0 flex items-center gap-1">
@@ -601,6 +878,7 @@ function ProductRow({
           {product.isPromo && product.promoText && (
             <div className="hidden sm:block text-xs text-brand truncate">{product.promoText}</div>
           )}
+          <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} className="hidden sm:inline-block mt-0.5" />
         </button>
 
         <div className="hidden sm:flex w-28 shrink-0 justify-end">
@@ -611,7 +889,10 @@ function ProductRow({
           {product.price.toLocaleString("uk-UA")} ₴
         </div>
 
-        <div className="hidden sm:flex">{qtyControls}</div>
+        <div className="hidden sm:flex items-center gap-2">
+          <SpecsButton onClick={onShowSpecs} />
+          {qtyControls}
+        </div>
       </div>
 
       {/* Price + stock + qty move to a second line on mobile so the row
@@ -622,8 +903,12 @@ function ProductRow({
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
           <StockBadge stock={product.stock} />
+          <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} className="mt-0.5" />
         </div>
         {qtyControls}
+      </div>
+      <div className="flex sm:hidden justify-end mt-1.5 pl-[68px]">
+        <SpecsButton onClick={onShowSpecs} />
       </div>
     </div>
   );
@@ -637,6 +922,7 @@ function QuickViewModal({
   onClose,
   similar,
   onSelectSimilar,
+  onShowSpecs,
 }: {
   product: Product;
   qty: number;
@@ -645,6 +931,7 @@ function QuickViewModal({
   onClose: () => void;
   similar: Product[];
   onSelectSimilar: (p: Product) => void;
+  onShowSpecs: () => void;
 }) {
   return (
     <div
@@ -696,11 +983,12 @@ function QuickViewModal({
               <div className="text-xl font-semibold text-slate-900 mb-1">
                 {product.price.toLocaleString("uk-UA")} ₴
               </div>
-              <div className="mb-3">
+              <div className="flex items-center gap-3 mb-3">
                 <StockBadge stock={product.stock} />
+                <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} />
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 mb-2">
                 <QtyInput
                   value={qty}
                   max={product.stock}
@@ -716,6 +1004,7 @@ function QuickViewModal({
                   Додати в кошик
                 </button>
               </div>
+              <SpecsButton onClick={onShowSpecs} className="w-full text-center" />
             </div>
           </div>
         </div>

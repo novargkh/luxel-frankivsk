@@ -152,6 +152,46 @@ export function deriveCategoryFromUrl(sourceUrl: string): string | null {
   return TOP_LEVEL_FALLBACK[seg1] ?? null;
 }
 
+export type CategoryGroup = { key: string; label: string; categories: string[] };
+
+// Two-level category tree for the catalog's drill-down navigation (mirrors
+// luxel.ua's own category mega-menu: a top-level group like "LED
+// Освітлення", then its specific subcategories like "LED Прожектори" /
+// "LED Панелі" / "Точкове освітлення"). Derived from the very same lookup
+// tables deriveCategoryFromUrl() uses, so this can never drift out of sync
+// with what products actually get categorized as.
+export function getCategoryTree(): CategoryGroup[] {
+  const groups: CategoryGroup[] = [];
+  for (const [seg1, label] of Object.entries(TOP_LEVEL_FALLBACK)) {
+    const cats = new Set<string>();
+    cats.add(label); // the top-level fallback name is itself a valid category value
+
+    if (seg1 === "elektrofurnitura") {
+      for (const seg3Map of Object.values(ELEKTROFURNITURA_SEG3)) {
+        for (const v of Object.values(seg3Map)) cats.add(v);
+      }
+      for (const v of Object.values(ELEKTROFURNITURA_SEG2_FALLBACK)) cats.add(v);
+    }
+
+    const seg2Map = SEG2_MAP[seg1];
+    if (seg2Map) {
+      for (const v of Object.values(seg2Map)) cats.add(v);
+    }
+
+    // "Світильники лінійні" is a pure name-keyword override (luxel.ua files
+    // linear luminaires under the same led_svetilniki URL bucket as every
+    // other LED light fixture), so it can't be derived from the URL maps.
+    if (seg1 === "svetodiodnoe--led--osveshhenie") cats.add("Світильники лінійні");
+
+    groups.push({
+      key: seg1,
+      label,
+      categories: Array.from(cats).sort((a, b) => a.localeCompare(b, "uk")),
+    });
+  }
+  return groups;
+}
+
 // Primary categorization entry point: prefers the rich URL-derived category
 // (matches luxel.ua's real menu structure), then applies a couple of
 // high-value name-keyword overrides on top (linear luminaires and
