@@ -64,11 +64,10 @@ function PackagingInfo({
   const parts: string[] = [];
   if (packQty) parts.push(`Уп: ${packQty} шт`);
   if (boxQty) parts.push(`Ящ: ${boxQty} шт`);
-  return (
-    <span className={`text-[11px] text-slate-400 whitespace-nowrap ${className ?? ""}`}>
-      {parts.join(" · ")}
-    </span>
-  );
+  // No whitespace-nowrap by default — callers with plenty of horizontal
+  // room can opt into it via className, but the default must be free to
+  // wrap so this text can never force a narrow row wider than the screen.
+  return <span className={`text-[11px] text-slate-400 ${className ?? ""}`}>{parts.join(" · ")}</span>;
 }
 
 function SpecsButton({ onClick, className }: { onClick: () => void; className?: string }) {
@@ -90,7 +89,44 @@ function SpecsButton({ onClick, className }: { onClick: () => void; className?: 
 // (admin-populated via "Оновити характеристики"). Renders on top of
 // QuickViewModal when opened from there, hence the higher z-index.
 function SpecsModal({ product, onClose }: { product: Product; onClose: () => void }) {
-  const entries = product.specs ? Object.entries(product.specs) : [];
+  // If this product hasn't been synced yet, fetch its specs on demand
+  // (from its own luxel.ua page, same as the admin bulk sync does) instead
+  // of just telling the person nothing's there — this is what makes
+  // "Характеристики" work for every product right away, not only the ones
+  // an admin has already batch-synced.
+  const [specs, setSpecs] = useState<Record<string, string> | null>(product.specs);
+  const [loading, setLoading] = useState(!product.specs);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (product.specs) {
+      setSpecs(product.specs);
+      setLoading(false);
+      setFailed(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setFailed(false);
+    fetch(`/api/products/${product.id}/specs`, { method: "POST" })
+      .then((res) => (res.ok ? res.json() : Promise.reject(res)))
+      .then((data) => {
+        if (cancelled) return;
+        setSpecs(data.specs ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
+
+  const entries = specs ? Object.entries(specs) : [];
   return (
     <div
       className="fixed inset-0 bg-slate-900/50 z-30 flex items-center justify-center p-4"
@@ -113,7 +149,9 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
           </button>
         </div>
         <div className="p-4">
-          {entries.length > 0 ? (
+          {loading ? (
+            <p className="text-sm text-slate-500">Завантаження характеристик...</p>
+          ) : entries.length > 0 ? (
             <dl className="space-y-1.5">
               {entries.map(([label, value]) => (
                 <div
@@ -125,9 +163,13 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
                 </div>
               ))}
             </dl>
+          ) : failed ? (
+            <p className="text-sm text-slate-500">
+              Не вдалося завантажити характеристики. Спробуйте ще раз пізніше.
+            </p>
           ) : (
             <p className="text-sm text-slate-500">
-              Характеристики для цього товару ще не завантажені.
+              Для цього товару характеристики на luxel.ua не знайдено.
             </p>
           )}
         </div>
@@ -753,7 +795,6 @@ export default function CatalogPage() {
                           qty={cart[p.id] ?? 0}
                           onQty={(q) => setQty(p.id, q)}
                           onOpen={() => setQuickView(p)}
-                          onShowSpecs={() => setSpecsProduct(p)}
                         />
                       ))}
                     </div>
@@ -811,13 +852,11 @@ function ProductRow({
   qty,
   onQty,
   onOpen,
-  onShowSpecs,
 }: {
   product: Product;
   qty: number;
   onQty: (q: number) => void;
   onOpen: () => void;
-  onShowSpecs: () => void;
 }) {
   const qtyControls = (
     <div className="shrink-0 flex items-center gap-1">
@@ -889,26 +928,29 @@ function ProductRow({
           {product.price.toLocaleString("uk-UA")} ₴
         </div>
 
-        <div className="hidden sm:flex items-center gap-2">
-          <SpecsButton onClick={onShowSpecs} />
-          {qtyControls}
-        </div>
+        <div className="hidden sm:flex">{qtyControls}</div>
       </div>
 
       {/* Price + stock + qty move to a second line on mobile so the row
-          never forces horizontal scrolling on narrow screens. */}
-      <div className="flex sm:hidden items-center justify-between gap-2 mt-2 pl-[68px]">
-        <div className="flex flex-col">
+          never forces horizontal scrolling on narrow screens. The price/
+          stock/packaging block gets min-w-0 so its text can wrap instead
+          of forcing the row wider than the screen and clipping qtyControls
+          off the edge (the card wrapper clips overflow rather than
+          scrolling it) — qtyControls itself is shrink-0 so it always stays
+          fully visible. */}
+      <div className="flex sm:hidden items-start justify-between gap-2 mt-2 pl-[68px]">
+        <div className="flex flex-col min-w-0">
           <span className="text-sm font-semibold text-slate-900">
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
           <StockBadge stock={product.stock} />
-          <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} className="mt-0.5" />
+          <PackagingInfo
+            packQty={product.packQty}
+            boxQty={product.boxQty}
+            className="mt-0.5 whitespace-normal"
+          />
         </div>
-        {qtyControls}
-      </div>
-      <div className="flex sm:hidden justify-end mt-1.5 pl-[68px]">
-        <SpecsButton onClick={onShowSpecs} />
+        <div className="shrink-0">{qtyControls}</div>
       </div>
     </div>
   );

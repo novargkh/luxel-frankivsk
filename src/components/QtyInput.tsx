@@ -18,6 +18,12 @@ import { useRef, useState } from "react";
 // (tapping it just blurs the field, which commits the draft the same way
 // tabbing away would).
 //
+// The typed digits are clamped to `max` (available stock) as you type,
+// not silently after the fact — typing "50" against 20 in stock snaps the
+// displayed number to 20 right away, with a small note underneath, instead
+// of showing "50" until you confirm and only then jumping to 20 with no
+// explanation.
+//
 // Plain <input type="number"> doesn't support programmatic cursor
 // placement in most browsers (setSelectionRange throws on it), so this
 // uses a numeric-mode text input instead.
@@ -38,20 +44,12 @@ export default function QtyInput({
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
+  const [clamped, setClamped] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const shown = draft ?? String(value);
 
-  function commit(raw: string) {
-    if (raw.trim() === "") return;
-    let n = Math.floor(Number(raw));
-    if (!Number.isFinite(n)) return;
-    if (n < min) n = min;
-    if (n > max) n = max;
-    onChange(n);
-  }
-
   return (
-    <span className="inline-flex items-center gap-1">
+    <span className="inline-flex items-center gap-1 relative">
       <input
         ref={inputRef}
         type="text"
@@ -61,6 +59,7 @@ export default function QtyInput({
         value={shown}
         onFocus={(e) => {
           setEditing(true);
+          setClamped(false);
           if (value === 0) {
             setDraft("");
             return;
@@ -75,13 +74,27 @@ export default function QtyInput({
         }}
         onChange={(e) => {
           const digits = e.target.value.replace(/[^\d]/g, "");
-          setDraft(digits);
-          commit(digits);
+          if (digits === "") {
+            setDraft("");
+            setClamped(false);
+            return;
+          }
+          let n = Math.floor(Number(digits));
+          if (!Number.isFinite(n)) return;
+          const overMax = n > max;
+          if (overMax) n = max;
+          if (n < min) n = min;
+          // Show exactly what was committed, not the raw keystrokes, so
+          // the field never displays a number bigger than what's in stock.
+          setDraft(String(n));
+          setClamped(overMax);
+          onChange(n);
         }}
         onBlur={() => {
           if (draft !== null && draft.trim() === "") onChange(min);
           setDraft(null);
           setEditing(false);
+          setClamped(false);
         }}
         onKeyDown={(e) => {
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
@@ -102,6 +115,11 @@ export default function QtyInput({
         >
           OK
         </button>
+      )}
+      {clamped && (
+        <span className="absolute top-full left-0 mt-0.5 text-[10px] text-amber-600 whitespace-nowrap z-10">
+          максимум: {max}
+        </span>
       )}
     </span>
   );
