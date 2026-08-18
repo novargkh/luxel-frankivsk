@@ -20,11 +20,10 @@ type Product = {
   images: ProductImage[];
 };
 
+// Matches the compact "Уп/ящ: 100/20" format used on the catalog cards.
 function packagingText(packQty: number | null, boxQty: number | null): string | null {
-  const parts: string[] = [];
-  if (packQty) parts.push(`Уп: ${packQty} шт`);
-  if (boxQty) parts.push(`Ящ: ${boxQty} шт`);
-  return parts.length > 0 ? parts.join(" · ") : null;
+  if (!packQty && !boxQty) return null;
+  return `Уп/ящ: ${packQty ?? "—"}/${boxQty ?? "—"}`;
 }
 type Shop = { id: string; name: string; address: string };
 type AppliedPromo = { code: string; type: "PERCENT" | "FIXED"; value: number };

@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { parseCsv } from "@/lib/csv";
+import * as XLSX from "xlsx";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -237,16 +238,28 @@ export default function AdminProductsPage() {
     }
   }
 
-  // Parses the uploaded packaging/price CSV in the browser (so we never
+  // Parses the uploaded packaging/price file in the browser (so we never
   // have to trust a raw file upload server-side) and POSTs just the rows
   // as structured data — matching to products happens server-side by
-  // article code.
+  // article code. Accepts both CSV and Excel (.xlsx/.xls) — the client's
+  // price list comes as either depending on how it was exported, and both
+  // just need to resolve to the same "Артикул / упаковка / ящик" columns.
   async function importPackagingCsv(file: File) {
     setImportingPackaging(true);
     setImportPackagingMsg(null);
     try {
-      const text = await file.text();
-      const table = parseCsv(text);
+      const isExcel = /\.xlsx?$/i.test(file.name);
+      let table: string[][];
+      if (isExcel) {
+        const buf = await file.arrayBuffer();
+        const wb = XLSX.read(buf, { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true }) as unknown[][];
+        table = rows.map((r) => r.map((c) => (c === null || c === undefined ? "" : String(c))));
+      } else {
+        const text = await file.text();
+        table = parseCsv(text);
+      }
       if (table.length < 2) {
         setImportPackagingMsg({ type: "error", text: "Файл порожній або має невірний формат" });
         return;
@@ -368,7 +381,7 @@ export default function AdminProductsPage() {
             <input
               ref={packagingInputRef}
               type="file"
-              accept=".csv,text/csv"
+              accept=".csv,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -378,10 +391,10 @@ export default function AdminProductsPage() {
             <button
               onClick={() => packagingInputRef.current?.click()}
               disabled={importingPackaging}
-              title="Імпортує кількість одиниць в упаковці та в ящику з CSV-файлу, зіставляючи товари за артикулом"
+              title="Імпортує кількість одиниць в упаковці та в ящику з CSV або Excel-файлу, зіставляючи товари за артикулом"
               className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
             >
-              {importingPackaging ? "Імпорт..." : "Імпортувати упаковку (CSV)"}
+              {importingPackaging ? "Імпорт..." : "Імпортувати упаковку (CSV/Excel)"}
             </button>
             <button
               onClick={startCreate}

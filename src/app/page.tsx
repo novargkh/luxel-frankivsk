@@ -61,13 +61,22 @@ function PackagingInfo({
   className?: string;
 }) {
   if (!packQty && !boxQty) return null;
-  const parts: string[] = [];
-  if (packQty) parts.push(`Уп: ${packQty} шт`);
-  if (boxQty) parts.push(`Ящ: ${boxQty} шт`);
+  // Compact "100/20" (шт. в упаковці / шт. в ящику) instead of the old
+  // verbose "Уп: 100 шт · Ящ: 20 шт" — matches the format the client
+  // uses in their own price list. Falls back to "—" for whichever side
+  // is missing so the slash always makes sense on its own.
+  const text = `${packQty ?? "—"}/${boxQty ?? "—"}`;
   // No whitespace-nowrap by default — callers with plenty of horizontal
   // room can opt into it via className, but the default must be free to
   // wrap so this text can never force a narrow row wider than the screen.
-  return <span className={`text-[11px] text-slate-400 ${className ?? ""}`}>{parts.join(" · ")}</span>;
+  return (
+    <span
+      className={`text-[11px] text-slate-400 ${className ?? ""}`}
+      title="Шт. в упаковці / шт. в ящику"
+    >
+      Уп/ящ: {text}
+    </span>
+  );
 }
 
 function SpecsButton({ onClick, className }: { onClick: () => void; className?: string }) {
