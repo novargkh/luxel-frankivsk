@@ -82,7 +82,12 @@ async function main() {
         const batch = items.slice(i, i + BATCH_SIZE);
         await Promise.all(
           batch.map((item) => {
-            const category = categorizeProduct(item.name, item.sourceUrl, item.category);
+            const category = categorizeProduct(
+              item.name,
+              item.sourceUrl,
+              item.category,
+              item.subcategory
+            );
             return prisma.product.create({
               data: {
                 name: item.name,

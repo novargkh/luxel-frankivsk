@@ -8,16 +8,14 @@
 // too, so those must NOT be pulled into the "Розетки" bucket — only
 // standalone wall/panel sockets should land there.
 //
-// This is now used only as a fallback for products that don't have a
-// sourceUrl (e.g. manually added by an admin) — see categorizeProduct()
-// below for the primary, URL-driven categorization used for everything
-// synced from luxel.ua.
+// This is used as a fallback for products without a usable source URL or
+// source subcategory, for example a product added manually by an admin.
 export function refineCategory(name: string, fallback: string): string {
   const n = name.toLowerCase();
 
-  if (n.includes("прожектор")) return "Прожектори";
+  if (n.includes("прожектор")) return "LED Прожектори";
 
-  if (n.includes("лінійн") && n.includes("світильник")) return "Світильники лінійні";
+  if (n.includes("лінійн") && n.includes("світильник")) return "LED Лінійні світильники";
 
   if (n.includes("розетк") && !n.includes("подовж") && !n.includes("колодк")) return "Розетки";
 
@@ -50,6 +48,7 @@ const TOP_LEVEL_FALLBACK: Record<string, string> = {
 const SEG2_MAP: Record<string, Record<string, string>> = {
   aksessuari: {
     adapter: "Трійники та перехідники",
+    "razvetvitel-na-dve-lampi-e27--1038-": "Трійники та перехідники",
     bra: "Вимикачі для бра",
     kauchuk: "Каучукові вилки та штепселя",
     shtepsel: "Штепселя",
@@ -63,12 +62,12 @@ const SEG2_MAP: Record<string, Record<string, string>> = {
     "udliniteli-s-usb": "Подовжувачі з USB",
   },
   "svetodiodnie--led--lampi": {
-    led_lampy: "LED Лампи",
+    led_lampy: "LED Лампи побутові",
     "filamentnie-lampi": "LED філаментні лампи",
     "led-lampi-visokoj-moshhnosti": "LED Лампи високої потужності",
     "led-lampi-srednej-moshhnosti": "LED Лампи середньої потужності",
     "led-t8": "LED Лампи T8",
-    "nizkovoltnie-lampi": "Низьковольтні LED лампи",
+    "nizkovoltnie-lampi": "LED Низьковольтні лампи",
   },
   "svetodiodnoe--led--fitoosveshhenie": {
     "led-fitolampi": "LED Фітолампи",
@@ -83,8 +82,8 @@ const SEG2_MAP: Record<string, Record<string, string>> = {
     led_paneli_s_dekorom: "LED Панелі з декором",
     "led-nastolnie-lampi": "LED Настільні лампи",
     "led-avtonomnoe-osveshhenie": "LED Автономне освітлення",
-    prozhektory: "Прожектори",
-    "led-fonari": "LED Ліхтарі",
+    prozhektory: "LED Прожектори",
+    "led-fonari": "LED ліхтарі",
     "akcentnoe-osveshhenie": "Акцентне Освітлення",
     "tochechnoe-osveshhenie": "Точкове освітлення",
     "sumerechnie-datchiki": "Сутінкові датчики",
@@ -115,6 +114,7 @@ const ELEKTROFURNITURA_SEG3: Record<string, Record<string, string>> = {
     "bloki--rozetka-vikljuchatel-otkritaja-ustanovka": "Блоки (розетка + вимикач)",
     "rozetki--telefonnie--televizionnie-otkritaja-ustanovka":
       "Розетки (телефонні, телевізійні)",
+    "reguljatori-jarkosti-otkritaja-ustanovka": "Регулятори яскравості",
   },
 };
 
@@ -133,6 +133,10 @@ const CATEGORY_ALIASES: Record<string, string> = {
   "Фітоосвітлення": TOP_LEVEL_FALLBACK["svetodiodnoe--led--fitoosveshhenie"],
   "WiFi Smart": TOP_LEVEL_FALLBACK["-wifi-smart-tovari"],
   "Генератори": TOP_LEVEL_FALLBACK.generatori,
+  Прожектори: "LED Прожектори",
+  "LED Ліхтарі": "LED ліхтарі",
+  "Низьковольтні LED лампи": "LED Низьковольтні лампи",
+  "Світильники лінійні": "LED Лінійні світильники",
   "Акцентне освітлення": "Акцентне Освітлення",
   "LED філамент-лампи": "LED філаментні лампи",
   Перехідники: "Трійники та перехідники",
@@ -214,10 +218,10 @@ export function getCategoryTree(): CategoryGroup[] {
       for (const v of Object.values(seg2Map)) cats.add(v);
     }
 
-    // "Світильники лінійні" is a pure name-keyword override (luxel.ua files
+// "LED Лінійні світильники" is a pure name-keyword override (luxel.ua files
     // linear luminaires under the same led_svetilniki URL bucket as every
     // other LED light fixture), so it can't be derived from the URL maps.
-    if (seg1 === "svetodiodnoe--led--osveshhenie") cats.add("Світильники лінійні");
+    if (seg1 === "svetodiodnoe--led--osveshhenie") cats.add("LED Лінійні світильники");
 
     groups.push({
       key: seg1,
@@ -228,23 +232,47 @@ export function getCategoryTree(): CategoryGroup[] {
   return groups;
 }
 
-// Primary categorization entry point: prefers the rich URL-derived category
-// (matches luxel.ua's real menu structure), then applies a couple of
-// high-value name-keyword overrides on top (linear luminaires and
-// floodlights aren't distinguishable from the URL alone — luxel.ua files
-// both under the same "led_svetilniki" bucket). Falls back to pure
-// keyword-based refineCategory() when there's no usable sourceUrl at all.
+// Primary categorization entry point: for the bulk export, the source
+// subcategory is authoritative; for newly synced products, the URL-derived
+// category is used. A few high-confidence name overrides handle products
+// whose URL still points at an old or broad site bucket.
 export function categorizeProduct(
   name: string,
   sourceUrl: string | null | undefined,
-  existingFallback: string
+  existingFallback: string,
+  sourceSubcategory?: string | null
 ): string {
   const urlCategory = sourceUrl ? deriveCategoryFromUrl(sourceUrl) : null;
-  const base = urlCategory ?? refineCategory(name, normalizeCategory(existingFallback));
+  const hintedCategory = sourceSubcategory ? normalizeCategory(sourceSubcategory) : null;
+  const base = urlCategory ?? hintedCategory ?? refineCategory(name, normalizeCategory(existingFallback));
 
   const n = name.toLowerCase();
-  if (n.includes("прожектор")) return "Прожектори";
-  if (n.includes("лінійн") && n.includes("світильник")) return "Світильники лінійні";
+  const sourcePath = sourceUrl?.toLowerCase() ?? "";
 
-  return base;
+  // A product can move between site sections while keeping an old URL. The
+  // product name is a useful, narrow correction for these high-confidence
+  // cases and keeps newly synced products in the same buckets as the bulk
+  // catalog.
+  if (sourcePath.includes("-wifi-smart-tovari")) {
+    return TOP_LEVEL_FALLBACK["-wifi-smart-tovari"];
+  }
+  if (n.includes("фітоламп")) return "LED Фітолампи";
+  if (n.includes("фітосвітильник")) return "LED Фітосвітильники";
+  if (n.includes("перехідник") || n.includes("розгалужувач") || n.includes("трійник")) {
+    return "Трійники та перехідники";
+  }
+  if (n.includes("вимикач перехресн")) return "Вимикачі (прихована установка)";
+  if (n.includes("зовнішн") && n.includes("розетк")) return "Розетки";
+  if (n.includes("зовнішн") && n.includes("вимикач")) return "Вимикачі";
+  if (n.includes("зовнішн") && n.includes("регулятор")) return "Регулятори яскравості";
+  if (n.includes("прожектор")) return "LED Прожектори";
+  if (n.includes("лінійн") && n.includes("світильник")) return "LED Лінійні світильники";
+  if (n.includes("низьковольтн") && n.includes("ламп")) return "LED Низьковольтні лампи";
+
+  // The source export contains the authoritative subcategory for the bulk
+  // import. Keep it after the high-confidence name corrections above, while
+  // still allowing the URL to place WiFi products in their own top group.
+  if (hintedCategory) return hintedCategory;
+
+  return normalizeCategory(base);
 }

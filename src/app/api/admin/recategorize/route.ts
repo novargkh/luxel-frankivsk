@@ -2,16 +2,18 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { categorizeProduct } from "@/lib/categorize";
+import catalog from "../../../../../prisma/luxel-catalog.json";
 
 // One-off (re-runnable, idempotent) admin action: re-derives each product's
-// category — preferring the rich URL-derived taxonomy (matches luxel.ua's
-// real category menu) and falling back to name-keyword rules for products
-// without a sourceUrl — so existing catalog items land in the same
-// finer-grained buckets newly-synced products get. Safe to run repeatedly —
+// category using the source export's exact subcategory when available, then
+// the URL/name rules for products added later. Safe to run repeatedly —
 // products already in the right category are left untouched.
 export const maxDuration = 60;
 
 const UPDATE_CONCURRENCY = 10;
+const SOURCE_SUBCATEGORY_BY_URL = new Map(
+  catalog.map((item) => [item.sourceUrl, item.subcategory] as const)
+);
 
 export async function POST() {
   const session = await auth();
@@ -28,7 +30,12 @@ export async function POST() {
     .map((p) => ({
       id: p.id,
       from: p.category,
-      to: categorizeProduct(p.name, p.sourceUrl, p.category ?? "Інше"),
+      to: categorizeProduct(
+        p.name,
+        p.sourceUrl,
+        p.category ?? "Інше",
+        p.sourceUrl ? SOURCE_SUBCATEGORY_BY_URL.get(p.sourceUrl) : undefined
+      ),
     }))
     .filter((c) => c.to !== (c.from ?? "Інше"));
 
