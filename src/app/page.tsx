@@ -2,6 +2,16 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import {
+  ArrowRight,
+  CaretDown,
+  ImageSquare,
+  MagnifyingGlass,
+  Minus,
+  Plus,
+  SlidersHorizontal,
+  X,
+} from "@phosphor-icons/react";
 import Navbar from "@/components/Navbar";
 import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
@@ -65,7 +75,7 @@ function PackagingInfo({
   // verbose "Уп: 100 шт · Ящ: 20 шт" — matches the format the client
   // uses in their own price list. Falls back to "—" for whichever side
   // is missing so the slash always makes sense on its own.
-  const text = `${packQty ?? "—"}/${boxQty ?? "—"}`;
+  const text = `${packQty ?? "-"}/${boxQty ?? "-"}`;
   // No whitespace-nowrap by default — callers with plenty of horizontal
   // room can opt into it via className, but the default must be free to
   // wrap so this text can never force a narrow row wider than the screen.
@@ -87,7 +97,7 @@ function SpecsButton({ onClick, className }: { onClick: () => void; className?: 
         e.stopPropagation();
         onClick();
       }}
-      className={`h-10 inline-flex items-center justify-center text-sm font-medium text-ink rounded-full ring-1 ring-black/15 hover:ring-black/35 transition-shadow whitespace-nowrap ${className ?? ""}`}
+      className={`h-11 inline-flex items-center justify-center text-sm font-medium text-ink rounded-full bg-ink/[0.05] hover:bg-ink/[0.09] active:scale-[0.98] transition-all duration-300 ease-fluid whitespace-nowrap ${className ?? ""}`}
     >
       Характеристики
     </button>
@@ -138,11 +148,11 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
   const entries = specs ? Object.entries(specs) : [];
   return (
     <div
-      className="fixed inset-0 bg-ink/50 backdrop-blur-sm z-40 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-ink/25 backdrop-blur-sm z-40 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl"
+        className="reveal glass glass-strong rounded-[1.75rem] max-w-md w-full max-h-[80vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between p-5 border-b border-black/[0.06]">
@@ -155,7 +165,7 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
             aria-label="Закрити"
             className="shrink-0 ml-4 w-9 h-9 inline-flex items-center justify-center rounded-full bg-paper text-ink hover:bg-black/10 transition-colors"
           >
-            <CloseIcon size={14} />
+            <X size={16} weight="light" />
           </button>
         </div>
         <div className="p-5">
@@ -506,134 +516,144 @@ export default function CatalogPage() {
   const heroCount = products.length;
 
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-[100dvh] flex flex-col">
       <div ref={navRef} className="sticky top-0 z-20">
         <Navbar />
       </div>
 
-      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-8 sm:pt-12 flex-1 pb-32">
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-10 sm:pt-16 flex-1 pb-36">
         {profileIncomplete && (
-          <div className="mb-6 rounded-2xl bg-brand/[0.06] ring-1 ring-brand/20 p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap">
-            <p className="text-sm leading-relaxed text-ink/80 max-w-xl">
-              Щоб оформлювати замовлення, заповніть профіль і додайте хоча б один
-              магазин (адресу доставки). Товари можна додавати в кошик вже зараз.
-            </p>
-            <Link
-              href="/profile"
-              className="inline-flex items-center h-10 rounded-full bg-ink text-white text-sm font-medium px-5 hover:bg-black transition-colors whitespace-nowrap"
-            >
-              Заповнити профіль
-            </Link>
-          </div>
+          <Bezel className="reveal mb-4">
+            <div className="p-5 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
+              <p className="text-[15px] leading-relaxed text-ink/80 max-w-[60ch]">
+                Щоб оформлювати замовлення, заповніть профіль і додайте хоча б один
+                магазин (адресу доставки). Товари можна додавати в кошик вже зараз.
+              </p>
+              <Link
+                href="/profile"
+                className="group h-12 inline-flex items-center gap-3 rounded-full bg-ink text-white pl-5 pr-1.5 text-sm font-medium whitespace-nowrap active:scale-[0.98] transition-transform duration-300 ease-fluid"
+              >
+                Заповнити профіль
+                <span className="w-9 h-9 rounded-full bg-white/15 inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
+                  <ArrowRight size={16} weight="bold" />
+                </span>
+              </Link>
+            </div>
+          </Bezel>
         )}
 
         {announcements.length > 0 && showAnnouncements && (
-          <section className="mb-8 rounded-2xl bg-white ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(23,20,15,0.04)] p-5 relative">
-            <button
-              onClick={() => setShowAnnouncements(false)}
-              className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-paper transition-colors"
-              aria-label="Приховати"
-            >
-              <CloseIcon size={14} />
-            </button>
-            <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted mb-3">
-              <span className="w-1.5 h-1.5 rounded-full bg-brand" />
-              Сповіщення
-            </h2>
-            <div className="space-y-2 pr-8">
-              {announcements.slice(0, 3).map((a) => (
-                <p key={a.id} className="text-sm leading-relaxed text-ink/85">
-                  <span className="font-semibold text-ink">{a.title}.</span> {a.body}
-                </p>
-              ))}
-            </div>
-          </section>
+          <Bezel className="reveal mb-10">
+            <section className="relative p-5 sm:p-6">
+              <button
+                onClick={() => setShowAnnouncements(false)}
+                className="absolute top-3.5 right-3.5 w-9 h-9 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-ink/[0.05] transition-colors duration-300 ease-fluid"
+                aria-label="Приховати сповіщення"
+              >
+                <X size={16} weight="light" />
+              </button>
+              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink mb-3">Сповіщення</h2>
+              <div className="space-y-2 pr-10">
+                {announcements.slice(0, 3).map((a) => (
+                  <p key={a.id} className="text-[15px] leading-relaxed text-ink/75 max-w-[75ch]">
+                    <span className="font-semibold text-ink">{a.title}.</span> {a.body}
+                  </p>
+                ))}
+              </div>
+            </section>
+          </Bezel>
         )}
 
-        <header className="mb-8 sm:mb-10">
-          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-brand mb-3">
-            Оптовий кабінет LUXEL
-          </p>
-          <h1 className="text-[40px] leading-[1.02] sm:text-6xl font-semibold tracking-[-0.035em] text-ink">
-            Каталог товарів
-          </h1>
-          {!loading && heroCount > 0 && (
-            <p className="mt-3 sm:mt-4 text-[15px] sm:text-lg text-muted tracking-[-0.01em] tabular">
-              {heroCount.toLocaleString("uk-UA")} {plural(heroCount, "позиція", "позиції", "позицій")} в
-              каталозі
-            </p>
-          )}
+        <header className="reveal mb-10 sm:mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+          <div>
+            <span className="inline-flex items-center rounded-full bg-white/60 ring-1 ring-white/80 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted mb-5">
+              Оптовий кабінет
+            </span>
+            <h1 className="text-[44px] leading-[0.95] sm:text-6xl font-semibold tracking-[-0.045em] text-ink">
+              Каталог товарів
+            </h1>
+            {!loading && heroCount > 0 && (
+              <p className="mt-4 text-base sm:text-lg text-muted tabular">
+                {heroCount.toLocaleString("uk-UA")} {plural(heroCount, "позиція", "позиції", "позицій")} у
+                каталозі
+              </p>
+            )}
+          </div>
+          <Link
+            href="/promotions"
+            className="group self-start md:self-auto h-12 inline-flex items-center gap-3 rounded-full glass-card sheen pl-5 pr-1.5 text-sm font-medium text-ink whitespace-nowrap active:scale-[0.98] transition-transform duration-300 ease-fluid"
+          >
+            Акції
+            <span className="w-9 h-9 rounded-full bg-brand text-white inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
+              <ArrowRight size={16} weight="bold" />
+            </span>
+          </Link>
         </header>
 
-        {/* Search + filters — sticky under the navbar so it stays reachable
-            while scrolling through a long, expanded catalog. On mobile the
-            extra filters collapse into a toggled panel so they don't
-            permanently eat screen space. */}
+        {/* Search + filters, sticky under the floating navbar so they stay
+            reachable while scrolling through a long, expanded catalog. On
+            mobile the extra filters collapse into a toggled panel. */}
         <div
-          className="sticky z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-6 bg-paper/85 backdrop-blur-xl"
+          className="sticky z-10 -mx-1.5 sm:-mx-2 py-2 mb-6"
           style={{ top: navHeight }}
         >
-          {/* Row 1: search (always visible) + mobile filter toggle */}
-          <div className="flex gap-2 items-center">
-            <div className="relative flex-1 min-w-0">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
-                <SearchIcon />
-              </span>
-              <input
-                type="text"
-                inputMode="search"
-                placeholder="Назва або артикул"
-                aria-label="Пошук товару"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full h-12 rounded-2xl bg-white pl-11 pr-11 text-[15px] text-ink placeholder:text-muted/70 ring-1 ring-black/10 shadow-[0_1px_2px_rgba(23,20,15,0.04)] focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-ink transition-shadow"
-              />
-              {search && (
-                <button
-                  type="button"
-                  onClick={() => setSearch("")}
-                  aria-label="Очистити пошук"
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-paper transition-colors"
-                >
-                  <CloseIcon size={14} />
-                </button>
-              )}
+          <div onPointerMove={trackLight} className="glass glass-strong rounded-[1.75rem] p-1.5">
+          <div className="flex gap-1.5 items-center">
+            <div className="flex-1 min-w-0">
+              <div className="relative">
+                <MagnifyingGlass
+                  size={18}
+                  weight="light"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
+                />
+                <input
+                  type="text"
+                  inputMode="search"
+                  placeholder="Назва або артикул"
+                  aria-label="Пошук товару"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="w-full h-12 rounded-[1.375rem] bg-white/80 ring-1 ring-white pl-11 pr-12 text-[15px] text-ink placeholder:text-muted shadow-[0_1px_2px_rgba(16,17,20,0.05)] focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-ink/70 transition-shadow duration-300 ease-fluid"
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch("")}
+                    aria-label="Очистити пошук"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-ink/[0.05] transition-colors duration-300 ease-fluid"
+                  >
+                    <X size={16} weight="light" />
+                  </button>
+                )}
+              </div>
             </div>
             <button
               onClick={() => setMobileFiltersOpen((v) => !v)}
               aria-expanded={mobileFiltersOpen}
-              className="sm:hidden relative shrink-0 h-12 inline-flex items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-ink ring-1 ring-black/10 whitespace-nowrap"
+              aria-label="Фільтри"
+              className="sm:hidden relative shrink-0 w-12 h-12 inline-flex items-center justify-center rounded-[1.375rem] bg-white/80 ring-1 ring-white text-ink active:scale-[0.97] transition-transform duration-300 ease-fluid"
             >
-              <FilterIcon />
-              Фільтри
+              <SlidersHorizontal size={20} weight="light" />
               {activeExtraFilterCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[11px] leading-5 text-center font-semibold">
+                <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[11px] leading-5 text-center font-semibold">
                   {activeExtraFilterCount}
                 </span>
               )}
             </button>
           </div>
 
-          {/* Desktop: full filter row, always visible. Category navigation
-              itself lives in the collapsible tree below (group ->
-              subcategory -> products). */}
-          <div className="hidden sm:flex gap-2 items-center flex-wrap mt-3">
-            <div className="relative">
-              <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-                aria-label="Сортування"
-                className="appearance-none h-10 rounded-full bg-white pl-4 pr-9 text-sm font-medium text-ink ring-1 ring-black/10 hover:ring-black/25 transition-shadow cursor-pointer"
-              >
-                <option value="default">Сортування: за замовчуванням</option>
-                <option value="price-asc">Ціна: від дешевих</option>
-                <option value="price-desc">Ціна: від дорогих</option>
-                <option value="name-asc">За назвою (А-Я)</option>
-              </select>
-              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
-                <Chevron size={14} />
-              </span>
-            </div>
+          {/* Desktop: full filter row, always visible. */}
+          <div className="hidden sm:flex gap-2 items-center flex-wrap px-1 pt-2 pb-1">
+            <PillSelect
+              value={sortOrder}
+              onChange={(v) => setSortOrder(v as typeof sortOrder)}
+              label="Сортування"
+            >
+              <option value="default">Сортування: за замовчуванням</option>
+              <option value="price-asc">Ціна: від дешевих</option>
+              <option value="price-desc">Ціна: від дорогих</option>
+              <option value="name-asc">За назвою (А-Я)</option>
+            </PillSelect>
             <ToggleChip active={promoOnly} onClick={() => setPromoOnly((v) => !v)}>
               Тільки акційні
             </ToggleChip>
@@ -643,288 +663,276 @@ export default function CatalogPage() {
             {isFiltering && (
               <button
                 onClick={resetFilters}
-                className="h-10 rounded-full px-3 text-sm text-muted hover:text-ink underline-offset-4 hover:underline transition-colors whitespace-nowrap"
+                className="h-10 rounded-full px-3 text-sm text-muted hover:text-ink transition-colors duration-300 ease-fluid whitespace-nowrap"
               >
                 Скинути фільтри
               </button>
             )}
           </div>
 
-          {/* Mobile: collapsible filter panel — picking a select/toggle
-              value applies it immediately and closes the panel. */}
+          {/* Mobile: collapsible filter panel. Picking a value applies it
+              immediately and closes the panel. */}
           {mobileFiltersOpen && (
-            <div className="sm:hidden mt-2 rounded-2xl bg-white ring-1 ring-black/10 shadow-lg p-4 space-y-3">
-              <div className="relative">
-                <select
+            <div className="reveal sm:hidden">
+              <div className="px-1.5 pt-3 pb-1.5 space-y-3">
+                <PillSelect
                   value={sortOrder}
-                  onChange={(e) => {
-                    setSortOrder(e.target.value as typeof sortOrder);
+                  onChange={(v) => {
+                    setSortOrder(v as typeof sortOrder);
                     setMobileFiltersOpen(false);
                   }}
-                  aria-label="Сортування"
-                  className="appearance-none w-full h-11 rounded-xl bg-paper pl-4 pr-9 text-sm font-medium text-ink"
+                  label="Сортування"
+                  full
                 >
                   <option value="default">Сортування: за замовчуванням</option>
                   <option value="price-asc">Ціна: від дешевих</option>
                   <option value="price-desc">Ціна: від дорогих</option>
                   <option value="name-asc">За назвою (А-Я)</option>
-                </select>
-                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
-                  <Chevron size={14} />
-                </span>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <ToggleChip
-                  active={promoOnly}
-                  onClick={() => {
-                    setPromoOnly((v) => !v);
-                    setMobileFiltersOpen(false);
-                  }}
-                >
-                  Тільки акційні
-                </ToggleChip>
-                <ToggleChip
-                  active={inStockOnly}
-                  onClick={() => {
-                    setInStockOnly((v) => !v);
-                    setMobileFiltersOpen(false);
-                  }}
-                >
-                  Тільки в наявності
-                </ToggleChip>
-              </div>
-              <div className="flex gap-2 pt-1">
-                {isFiltering && (
-                  <button
+                </PillSelect>
+                <div className="flex gap-2 flex-wrap">
+                  <ToggleChip
+                    active={promoOnly}
                     onClick={() => {
-                      resetFilters();
+                      setPromoOnly((v) => !v);
                       setMobileFiltersOpen(false);
                     }}
-                    className="flex-1 h-11 rounded-full text-sm font-medium text-ink ring-1 ring-black/15"
                   >
-                    Скинути
+                    Тільки акційні
+                  </ToggleChip>
+                  <ToggleChip
+                    active={inStockOnly}
+                    onClick={() => {
+                      setInStockOnly((v) => !v);
+                      setMobileFiltersOpen(false);
+                    }}
+                  >
+                    Тільки в наявності
+                  </ToggleChip>
+                </div>
+                <div className="flex gap-2 pt-1">
+                  {isFiltering && (
+                    <button
+                      onClick={() => {
+                        resetFilters();
+                        setMobileFiltersOpen(false);
+                      }}
+                      className="flex-1 h-11 rounded-full text-sm font-medium text-ink bg-ink/[0.05]"
+                    >
+                      Скинути
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setMobileFiltersOpen(false)}
+                    className="flex-1 h-11 rounded-full bg-ink text-white text-sm font-medium active:scale-[0.98] transition-transform duration-300 ease-fluid"
+                  >
+                    Готово
                   </button>
-                )}
-                <button
-                  onClick={() => setMobileFiltersOpen(false)}
-                  className="flex-1 h-11 rounded-full bg-ink text-white text-sm font-medium"
-                >
-                  Готово
-                </button>
+                </div>
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {isFiltering && !loading && (
-          <p className="mb-4 text-sm text-muted tabular">
+          <p className="mb-4 px-1 text-sm text-muted tabular">
             Знайдено: <span className="text-ink font-medium">{filtered.length}</span>
           </p>
         )}
 
         {loading ? (
-          <div className="space-y-3" aria-busy="true" aria-label="Завантаження каталогу">
+          <div className="space-y-2.5" aria-busy="true" aria-label="Завантаження каталогу">
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="h-[76px] sm:h-[88px] rounded-2xl bg-white ring-1 ring-black/[0.06] animate-pulse flex items-center gap-4 px-5"
-              >
-                <div className="w-6 h-3 rounded bg-paper" />
-                <div className="h-5 rounded bg-paper" style={{ width: `${30 + ((i * 13) % 30)}%` }} />
-                <div className="ml-auto w-9 h-9 rounded-full bg-paper" />
-              </div>
+              <Bezel key={i}>
+                <div className="h-[72px] sm:h-[84px] animate-pulse flex items-center gap-4 px-5 sm:px-7">
+                  <div
+                    className="h-5 rounded-full bg-ink/[0.06]"
+                    style={{ width: `${32 + ((i * 13) % 28)}%` }}
+                  />
+                  <div className="ml-auto w-10 h-10 rounded-full bg-ink/[0.05]" />
+                </div>
+              </Bezel>
             ))}
           </div>
         ) : treeGroups.length === 0 ? (
-          <div className="rounded-2xl bg-white ring-1 ring-black/[0.06] px-6 py-14 text-center">
-            <p className="text-lg font-semibold tracking-tight text-ink">Нічого не знайдено</p>
-            <p className="mt-1 text-sm text-muted">Спробуйте змінити запит або прибрати фільтри.</p>
-            {isFiltering && (
-              <button
-                onClick={resetFilters}
-                className="mt-5 h-10 rounded-full bg-ink text-white text-sm font-medium px-5"
-              >
-                Скинути фільтри
-              </button>
-            )}
-          </div>
+          <Bezel className="reveal">
+            <div className="px-6 py-16 text-center">
+              <MagnifyingGlass size={32} weight="light" className="mx-auto text-muted mb-4" />
+              <p className="text-xl font-semibold tracking-[-0.02em] text-ink">Нічого не знайдено</p>
+              <p className="mt-1.5 text-[15px] text-muted">
+                Спробуйте змінити запит або прибрати фільтри.
+              </p>
+              {isFiltering && (
+                <button
+                  onClick={resetFilters}
+                  className="mt-6 h-11 rounded-full bg-ink text-white text-sm font-medium px-6 active:scale-[0.98] transition-transform duration-300 ease-fluid"
+                >
+                  Скинути фільтри
+                </button>
+              )}
+            </div>
+          </Bezel>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             {treeGroups.map((g, gi) => {
               const groupOpen = isFiltering || expandedGroups.has(g.key);
               return (
-                <section
+                <Bezel
                   key={g.key}
-                  className={`rounded-2xl bg-white ring-1 overflow-hidden transition-shadow duration-300 ${
-                    groupOpen
-                      ? "ring-black/10 shadow-[0_10px_30px_-12px_rgba(23,20,15,0.18)]"
-                      : "ring-black/[0.06] shadow-[0_1px_2px_rgba(23,20,15,0.04)] hover:ring-black/15"
+                  className="reveal"
+                  style={{ ["--i" as string]: Math.min(gi, 10) }}
+                  innerClassName={`sheen transition-shadow duration-500 ease-fluid ${
+                    groupOpen ? "shadow-lift" : ""
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => toggleGroup(g.key)}
                     aria-expanded={groupOpen}
-                    className="w-full flex items-center gap-3 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5 text-left"
+                    className="group w-full flex items-center gap-3 sm:gap-4 px-5 sm:px-7 py-5 sm:py-6 text-left"
                   >
-                    <span
-                      className={`w-6 sm:w-8 shrink-0 text-xs font-semibold tabular tracking-wider transition-colors ${
-                        groupOpen ? "text-brand" : "text-muted/70"
-                      }`}
-                    >
-                      {String(gi + 1).padStart(2, "0")}
-                    </span>
-                    <span className="flex-1 min-w-0 text-[17px] sm:text-2xl font-semibold tracking-[-0.02em] text-ink">
+                    <span className="flex-1 min-w-0 text-lg sm:text-2xl font-semibold leading-tight tracking-[-0.03em] text-ink">
                       {g.label}
                     </span>
-                    <span className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted tabular">
-                      {g.total}
-                    </span>
+                    <span className="shrink-0 text-sm text-muted tabular">{g.total}</span>
                     <span
-                      className={`shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-full transition-all duration-300 ${
-                        groupOpen ? "bg-ink text-white rotate-180" : "bg-paper text-ink"
+                      className={`shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-full transition-all duration-500 ease-fluid ${
+                        groupOpen
+                          ? "bg-ink text-white rotate-180"
+                          : "bg-ink/[0.05] text-ink group-hover:bg-ink/[0.09]"
                       }`}
                     >
-                      <Chevron size={16} />
+                      <CaretDown size={16} weight="bold" />
                     </span>
                   </button>
 
                   {groupOpen && (
-                    <div className="border-t border-black/[0.06]">
-                      {/* Each subcategory owns its expanding product section:
-                          button -> its filters -> its products -> next button. */}
-                      <div className="divide-y divide-black/[0.06]">
-                        {g.categories.map(([category, items]) => {
-                          // A broad top-level category with no real child
-                          // (for example "Аксесуари") renders its products
-                          // directly without a duplicate same-name row.
-                          const isSameAsGroup = category === g.label;
-                          const isOpen = isSameAsGroup || isFiltering || expanded.has(category);
-                          const attrDefs = attrDefsFor(items);
+                    <div className="border-t border-black/[0.05] divide-y divide-black/[0.05]">
+                      {g.categories.map(([category, items]) => {
+                        // A broad top-level category with no real child
+                        // (for example "Аксесуари") renders its products
+                        // directly without a duplicate same-name row.
+                        const isSameAsGroup = category === g.label;
+                        const isOpen = isSameAsGroup || isFiltering || expanded.has(category);
+                        const attrDefs = attrDefsFor(items);
 
-                          return (
-                            <div key={category}>
-                              {!isSameAsGroup && (
-                                <button
-                                  type="button"
-                                  onClick={() => toggleCategory(category)}
-                                  aria-expanded={isOpen}
-                                  className={`w-full flex items-center gap-3 pl-[52px] sm:pl-[76px] pr-4 sm:pr-6 py-3.5 text-left transition-colors ${
-                                    isOpen ? "bg-paper/70" : "hover:bg-paper/50"
+                        return (
+                          <div key={category}>
+                            {!isSameAsGroup && (
+                              <button
+                                type="button"
+                                onClick={() => toggleCategory(category)}
+                                aria-expanded={isOpen}
+                                className={`w-full flex items-center gap-3 px-5 sm:px-7 py-4 text-left transition-colors duration-300 ease-fluid ${
+                                  isOpen ? "bg-ink/[0.025]" : "hover:bg-ink/[0.02]"
+                                }`}
+                              >
+                                <span
+                                  className={`flex-1 min-w-0 text-[15px] sm:text-base font-medium tracking-[-0.01em] ${
+                                    isOpen ? "text-ink" : "text-ink/75"
                                   }`}
                                 >
-                                  <span
-                                    className={`flex-1 min-w-0 text-[15px] sm:text-base font-medium tracking-[-0.01em] ${
-                                      isOpen ? "text-ink" : "text-ink/80"
-                                    }`}
-                                  >
-                                    {category}
-                                  </span>
-                                  <span className="text-xs text-muted tabular">{items.length}</span>
-                                  <span
-                                    className={`shrink-0 transition-all duration-300 ${
-                                      isOpen ? "text-brand rotate-180" : "text-muted"
-                                    }`}
-                                  >
-                                    <Chevron size={16} />
-                                  </span>
-                                </button>
-                              )}
+                                  {category}
+                                </span>
+                                <span className="text-xs text-muted tabular">{items.length}</span>
+                                <CaretDown
+                                  size={14}
+                                  weight="bold"
+                                  className={`shrink-0 transition-transform duration-500 ease-fluid ${
+                                    isOpen ? "rotate-180 text-brand" : "text-muted"
+                                  }`}
+                                />
+                              </button>
+                            )}
 
-                              <div
-                                className={`grid overflow-hidden transition-all duration-300 ease-out ${
-                                  isOpen
-                                    ? "grid-rows-[1fr] opacity-100 pointer-events-auto"
-                                    : "grid-rows-[0fr] opacity-0 pointer-events-none"
-                                }`}
-                                aria-hidden={!isOpen}
-                              >
-                                <div className="min-h-0 overflow-hidden">
-                                  {attrDefs.length > 0 && (
-                                    <div className="flex gap-2 flex-wrap px-4 sm:px-6 py-3 bg-paper/70 border-t border-black/[0.04]">
-                                      {attrDefs.map((def) => {
-                                        const filterKey = `${category}|${def.key}`;
-                                        const current = attrFilterValues[filterKey] ?? "";
-                                        return (
-                                          <div key={def.key} className="relative">
-                                            <select
-                                              value={current}
-                                              onChange={(e) =>
-                                                setAttrFilterValues((prev) => ({
-                                                  ...prev,
-                                                  [filterKey]: e.target.value,
-                                                }))
-                                              }
-                                              aria-label={def.label}
-                                              className={`appearance-none h-8 rounded-full pl-3 pr-7 text-xs font-medium cursor-pointer transition-colors ${
-                                                current
-                                                  ? "bg-ink text-white"
-                                                  : "bg-white text-ink ring-1 ring-black/10 hover:ring-black/25"
-                                              }`}
-                                            >
-                                              <option value="">{def.label}: всі</option>
-                                              {def.options.map((v) => (
-                                                <option key={v} value={v}>
-                                                  {def.format ? def.format(v) : v}
-                                                </option>
-                                              ))}
-                                            </select>
-                                            <span
-                                              className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
-                                                current ? "text-white" : "text-muted"
-                                              }`}
-                                            >
-                                              <Chevron size={12} />
-                                            </span>
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                  <div className="divide-y divide-black/[0.05] border-t border-black/[0.06]">
-                                    {items.map((p) => (
-                                      <ProductRow
-                                        key={p.id}
-                                        product={p}
-                                        qty={cart[p.id] ?? 0}
-                                        onQty={(q) => setQty(p.id, q)}
-                                        onOpen={() => setQuickView(p)}
-                                      />
-                                    ))}
+                            <div
+                              className={`grid overflow-hidden transition-all duration-500 ease-fluid ${
+                                isOpen
+                                  ? "grid-rows-[1fr] opacity-100 pointer-events-auto"
+                                  : "grid-rows-[0fr] opacity-0 pointer-events-none"
+                              }`}
+                              aria-hidden={!isOpen}
+                            >
+                              <div className="min-h-0 overflow-hidden">
+                                {attrDefs.length > 0 && (
+                                  <div className="flex gap-2 flex-wrap px-5 sm:px-7 py-3 bg-ink/[0.025]">
+                                    {attrDefs.map((def) => {
+                                      const filterKey = `${category}|${def.key}`;
+                                      const current = attrFilterValues[filterKey] ?? "";
+                                      return (
+                                        <PillSelect
+                                          key={def.key}
+                                          value={current}
+                                          onChange={(v) =>
+                                            setAttrFilterValues((prev) => ({
+                                              ...prev,
+                                              [filterKey]: v,
+                                            }))
+                                          }
+                                          label={def.label}
+                                          small
+                                          active={!!current}
+                                        >
+                                          <option value="">{def.label}: всі</option>
+                                          {def.options.map((v) => (
+                                            <option key={v} value={v}>
+                                              {def.format ? def.format(v) : v}
+                                            </option>
+                                          ))}
+                                        </PillSelect>
+                                      );
+                                    })}
                                   </div>
+                                )}
+                                <div key={String(isOpen)} className="divide-y divide-black/[0.04]">
+                                  {items.map((p, idx) => (
+                                    <ProductRow
+                                      key={p.id}
+                                      index={isOpen ? idx : -1}
+                                      product={p}
+                                      qty={cart[p.id] ?? 0}
+                                      onQty={(q) => setQty(p.id, q)}
+                                      onOpen={() => setQuickView(p)}
+                                    />
+                                  ))}
                                 </div>
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
-                </section>
+                </Bezel>
               );
             })}
           </div>
         )}
       </main>
 
-      {/* Floating mini-cart */}
+      {/* Floating mini-cart island */}
       {cartCount > 0 && (
-        <div className="no-print fixed bottom-4 inset-x-4 z-10 pointer-events-none">
-          <div className="pointer-events-auto mx-auto max-w-xl rounded-2xl bg-ink text-white shadow-[0_20px_50px_-12px_rgba(23,20,15,0.55)] pl-5 pr-2 py-2 flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-xs text-white/60 tabular">
+        <div className="no-print fixed bottom-4 sm:bottom-6 inset-x-3 z-10 pointer-events-none">
+          <div
+            onPointerMove={trackLight}
+            className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-full text-ink pl-6 pr-1.5 py-1.5 flex items-center justify-between gap-3"
+          >
+            <div className="min-w-0 leading-tight">
+              <div className="text-xs text-muted tabular">
                 {cartCount} {plural(cartCount, "товар", "товари", "товарів")} у кошику
               </div>
-              <div className="text-lg font-semibold tracking-tight tabular">
+              <div className="text-lg font-semibold tracking-[-0.02em] tabular">
                 {cartTotal.toLocaleString("uk-UA")} ₴
               </div>
             </div>
             <Link
               href="/cart"
-              className="inline-flex items-center gap-1.5 h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark transition-colors whitespace-nowrap"
+              className="group h-12 inline-flex items-center gap-3 rounded-full bg-brand pl-5 pr-1.5 text-sm font-semibold text-white whitespace-nowrap hover:bg-brand-dark active:scale-[0.98] transition-all duration-300 ease-fluid"
             >
               До кошика
-              <span aria-hidden="true">→</span>
+              <span className="w-9 h-9 rounded-full bg-white/15 inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
+                <ArrowRight size={16} weight="bold" />
+              </span>
             </Link>
           </div>
         </div>
@@ -952,6 +960,14 @@ export default function CatalogPage() {
 
 // ───────────────────────── small UI pieces ─────────────────────────
 
+// Moves the glass highlight to follow the pointer (CSS vars, no re-render).
+function trackLight(e: React.PointerEvent<HTMLElement>) {
+  const el = e.currentTarget;
+  const r = el.getBoundingClientRect();
+  el.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+  el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+}
+
 function plural(n: number, one: string, few: string, many: string) {
   const m10 = n % 10;
   const m100 = n % 100;
@@ -960,43 +976,32 @@ function plural(n: number, one: string, few: string, many: string) {
   return many;
 }
 
-function Chevron({ size = 16 }: { size?: number }) {
+// "Double bezel" container: a translucent outer tray holding a glass inner
+// core with a concentric, slightly smaller radius.
+function Bezel({
+  children,
+  className,
+  innerClassName,
+  style,
+}: {
+  children: React.ReactNode;
+  className?: string;
+  innerClassName?: string;
+  style?: React.CSSProperties;
+}) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
-function CloseIcon({ size = 16 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M16 16l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
-function FilterIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M4 7h10M18 7h2M4 17h2M10 17h10"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-      />
-      <circle cx="16" cy="7" r="2" stroke="currentColor" strokeWidth="1.8" />
-      <circle cx="8" cy="17" r="2" stroke="currentColor" strokeWidth="1.8" />
-    </svg>
+    <div
+      className={`rounded-[1.75rem] glass-tray p-1.5 ${className ?? ""}`}
+      style={style}
+    >
+      <div
+        className={`rounded-[calc(1.75rem-0.375rem)] glass-card overflow-hidden ${
+          innerClassName ?? ""
+        }`}
+      >
+        {children}
+      </div>
+    </div>
   );
 }
 
@@ -1014,8 +1019,8 @@ function ToggleChip({
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`h-10 inline-flex items-center rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors ${
-        active ? "bg-ink text-white" : "bg-white text-ink ring-1 ring-black/10 hover:ring-black/25"
+      className={`h-10 inline-flex items-center rounded-full px-4 text-sm font-medium whitespace-nowrap active:scale-[0.98] transition-all duration-300 ease-fluid ${
+        active ? "bg-ink text-white shadow-[0_8px_20px_-8px_rgba(16,17,20,0.5)]" : "bg-white/60 text-ink ring-1 ring-white/80 backdrop-blur-md hover:bg-white/85 shadow-[0_1px_2px_rgba(16,17,20,0.05)]"
       }`}
     >
       {children}
@@ -1023,7 +1028,53 @@ function ToggleChip({
   );
 }
 
-// [−] 12 [+] pill. QtyInput keeps its own typing/clamping behaviour; the
+function PillSelect({
+  value,
+  onChange,
+  label,
+  children,
+  small,
+  full,
+  active,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  label: string;
+  children: React.ReactNode;
+  small?: boolean;
+  full?: boolean;
+  active?: boolean;
+}) {
+  return (
+    <div className={`relative ${full ? "w-full" : ""}`}>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        aria-label={label}
+        className={`appearance-none rounded-full font-medium cursor-pointer transition-all duration-300 ease-fluid ${
+          small ? "h-8 pl-3 pr-8 text-xs" : "h-10 pl-4 pr-10 text-sm"
+        } ${full ? "w-full h-11 bg-ink/[0.04]" : ""} ${
+          active
+            ? "bg-ink text-white"
+            : full
+              ? "text-ink"
+              : "bg-white/60 text-ink ring-1 ring-white/80 backdrop-blur-md hover:bg-white/85 shadow-[0_1px_2px_rgba(16,17,20,0.05)]"
+        }`}
+      >
+        {children}
+      </select>
+      <CaretDown
+        size={small ? 11 : 13}
+        weight="bold"
+        className={`absolute top-1/2 -translate-y-1/2 pointer-events-none ${small ? "right-3" : "right-4"} ${
+          active ? "text-white" : "text-muted"
+        }`}
+      />
+    </div>
+  );
+}
+
+// [-] 12 [+] pill. QtyInput keeps its own typing/clamping behaviour; the
 // buttons just step by one.
 function Stepper({
   qty,
@@ -1037,12 +1088,11 @@ function Stepper({
   large?: boolean;
 }) {
   const disabled = stock <= 0;
-  const h = large ? "h-12" : "h-10";
-  const btn = `${large ? "w-12 h-12" : "w-10 h-10"} shrink-0 inline-flex items-center justify-center rounded-full text-ink transition-colors disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-black/5 enabled:active:bg-black/10`;
+  const btn = `${large ? "w-12 h-12" : "w-10 h-10"} shrink-0 inline-flex items-center justify-center rounded-full text-ink transition-all duration-300 ease-fluid disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-ink/[0.06] enabled:active:scale-90`;
   return (
     <div
-      className={`inline-flex items-center ${h} rounded-full bg-white transition-shadow focus-within:ring-2 focus-within:ring-ink ${
-        qty > 0 ? "ring-1 ring-ink/70" : "ring-1 ring-black/10"
+      className={`inline-flex items-center ${large ? "h-12" : "h-10"} rounded-full transition-all duration-300 ease-fluid focus-within:ring-2 focus-within:ring-ink/70 ${
+        qty > 0 ? "bg-white ring-1 ring-ink" : "bg-ink/[0.04]"
       } ${disabled ? "opacity-60" : ""}`}
     >
       <button
@@ -1052,16 +1102,14 @@ function Stepper({
         onClick={() => onQty(Math.max(0, qty - 1))}
         className={btn}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        <Minus size={14} weight="bold" />
       </button>
       <QtyInput
         value={qty}
         max={stock}
         disabled={disabled}
         onChange={onQty}
-        className="w-10 h-8 bg-transparent text-center text-[15px] font-semibold tabular text-ink focus:outline-none disabled:text-muted"
+        className="w-10 h-8 bg-transparent text-center text-[15px] font-semibold tabular text-ink focus:outline-none focus-visible:outline-none disabled:text-muted"
       />
       <button
         type="button"
@@ -1070,11 +1118,17 @@ function Stepper({
         onClick={() => onQty(qty + 1)}
         className={btn}
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+        <Plus size={14} weight="bold" />
       </button>
     </div>
+  );
+}
+
+function PromoTag() {
+  return (
+    <span className="inline-flex items-center h-5 rounded-full bg-brand/10 text-brand px-2 text-[11px] font-semibold">
+      Акція
+    </span>
   );
 }
 
@@ -1083,7 +1137,9 @@ function ProductRow({
   qty,
   onQty,
   onOpen,
+  index = -1,
 }: {
+  index?: number;
   product: Product;
   qty: number;
   onQty: (q: number) => void;
@@ -1092,14 +1148,19 @@ function ProductRow({
   const stepper = <Stepper qty={qty} stock={product.stock} onQty={onQty} />;
 
   return (
-    <div className="px-4 sm:px-6 py-4 hover:bg-paper/40 transition-colors">
+    <div
+      className={`px-4 sm:px-7 py-4 hover:bg-white/70 transition-colors duration-300 ease-fluid ${
+        index >= 0 && index < 14 ? "rise" : ""
+      }`}
+      style={index >= 0 ? { ["--i" as string]: index } : undefined}
+    >
       {/* Image + name always share the top line, full width, so the name
           gets real space instead of being squeezed by price/qty columns. */}
       <div className="flex items-center gap-3 sm:gap-4">
         <button
           onClick={onOpen}
           aria-label={`Переглянути: ${product.name}`}
-          className="shrink-0 w-16 h-16 rounded-xl bg-paper ring-1 ring-black/[0.05] overflow-hidden relative"
+          className="shrink-0 w-16 h-16 rounded-2xl bg-paper overflow-hidden active:scale-[0.97] transition-transform duration-300 ease-fluid"
         >
           {product.images[0] ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -1110,13 +1171,8 @@ function ProductRow({
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-muted/60 text-[10px] leading-tight text-center px-1">
-              немає фото
-            </div>
-          )}
-          {product.isPromo && (
-            <span className="absolute left-1 top-1 rounded-full bg-brand text-white text-[9px] font-semibold px-1.5 py-px">
-              Акція
+            <span className="w-full h-full flex items-center justify-center text-muted/60">
+              <ImageSquare size={22} weight="light" />
             </span>
           )}
         </button>
@@ -1125,14 +1181,16 @@ function ProductRow({
           <div className="text-[15px] font-medium leading-snug tracking-[-0.01em] text-ink line-clamp-2 sm:truncate">
             {product.name}
           </div>
-          {product.description && (
-            <div className="hidden sm:block text-[13px] text-muted truncate mt-0.5">
-              {product.description}
-            </div>
-          )}
-          {product.isPromo && product.promoText && (
-            <div className="hidden sm:block text-[13px] text-brand truncate">{product.promoText}</div>
-          )}
+          <div className="hidden sm:flex items-center gap-2 mt-1 min-w-0">
+            {product.isPromo && <PromoTag />}
+            {product.isPromo && product.promoText ? (
+              <span className="text-[13px] text-brand truncate">{product.promoText}</span>
+            ) : (
+              product.description && (
+                <span className="text-[13px] text-muted truncate">{product.description}</span>
+              )
+            )}
+          </div>
           <PackagingInfo
             packQty={product.packQty}
             boxQty={product.boxQty}
@@ -1144,7 +1202,7 @@ function ProductRow({
           <StockBadge stock={product.stock} />
         </div>
 
-        <div className="hidden sm:block text-[17px] font-semibold tracking-tight tabular text-ink w-28 shrink-0 text-right">
+        <div className="hidden sm:block text-[17px] font-semibold tracking-[-0.02em] tabular text-ink w-28 shrink-0 text-right">
           {product.price.toLocaleString("uk-UA")} ₴
         </div>
 
@@ -1152,19 +1210,18 @@ function ProductRow({
       </div>
 
       {/* Price + stock + qty move to a second line on mobile so the row
-          never forces horizontal scrolling on narrow screens. The text
-          block gets min-w-0 so it can wrap instead of pushing the stepper
-          off the edge; the stepper itself is shrink-0. */}
+          never forces horizontal scrolling on narrow screens. */}
       <div className="flex sm:hidden items-end justify-between gap-3 mt-3 pl-[76px]">
-        <div className="flex flex-col min-w-0">
-          <span className="text-lg font-semibold tracking-tight tabular text-ink leading-none mb-1.5">
+        <div className="flex flex-col items-start min-w-0 gap-1">
+          {product.isPromo && <PromoTag />}
+          <span className="text-lg font-semibold tracking-[-0.02em] tabular text-ink leading-none">
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
           <StockBadge stock={product.stock} />
           <PackagingInfo
             packQty={product.packQty}
             boxQty={product.boxQty}
-            className="mt-0.5 whitespace-normal"
+            className="whitespace-normal"
           />
         </div>
         <div className="shrink-0">{stepper}</div>
@@ -1194,85 +1251,88 @@ function QuickViewModal({
 }) {
   return (
     <div
-      className="fixed inset-0 bg-ink/50 backdrop-blur-sm z-30 flex items-end sm:items-center justify-center sm:p-6"
+      className="fixed inset-0 bg-ink/25 backdrop-blur-sm z-30 flex items-end sm:items-center justify-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={product.name}
     >
       <div
-        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl"
+        className="reveal glass glass-strong rounded-t-[1.75rem] sm:rounded-[1.75rem] max-w-3xl w-full max-h-[92dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-4 px-5 sm:px-8 pt-5 sm:pt-7">
+        <div className="flex items-start justify-between gap-4 px-5 sm:px-8 pt-6 sm:pt-8">
           <div className="min-w-0">
             {product.category && (
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted mb-1.5">
-                {normalizeCategory(product.category)}
-              </p>
+              <p className="text-sm text-muted mb-1.5">{normalizeCategory(product.category)}</p>
             )}
-            <h2 className="text-xl sm:text-2xl font-semibold leading-tight tracking-[-0.02em] text-ink">
+            <h2 className="text-xl sm:text-[28px] font-semibold leading-tight tracking-[-0.03em] text-ink">
               {product.name}
             </h2>
           </div>
           <button
             onClick={onClose}
             aria-label="Закрити"
-            className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-full bg-paper text-ink hover:bg-black/10 transition-colors"
+            className="shrink-0 w-11 h-11 inline-flex items-center justify-center rounded-full bg-ink/[0.05] text-ink hover:bg-ink/[0.09] active:scale-95 transition-all duration-300 ease-fluid"
           >
-            <CloseIcon size={16} />
+            <X size={18} weight="light" />
           </button>
         </div>
 
-        <div className="px-5 sm:px-8 py-5 grid sm:grid-cols-2 gap-5 sm:gap-8">
-          <div className="aspect-square bg-paper rounded-2xl overflow-hidden ring-1 ring-black/[0.05]">
+        <div className="px-5 sm:px-8 py-6 grid sm:grid-cols-2 gap-6 sm:gap-8">
+          <div className="aspect-square bg-paper rounded-[1.25rem] overflow-hidden">
             {product.images[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={product.images[0].url}
                 alt={product.name}
-                className="w-full h-full object-contain"
+                className="w-full h-full object-contain mix-blend-multiply"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-muted/60 text-sm">
-                немає фото
+              <div className="w-full h-full flex items-center justify-center text-muted/60">
+                <ImageSquare size={40} weight="light" />
               </div>
             )}
           </div>
 
           <div className="flex flex-col">
             {product.isPromo && (
-              <span className="self-start mb-3 rounded-full bg-brand text-white text-[11px] font-semibold px-2.5 py-1">
-                Акція
-              </span>
+              <div className="mb-3">
+                <PromoTag />
+              </div>
             )}
             {product.description && (
-              <p className="text-[15px] leading-relaxed text-ink/75 mb-3">{product.description}</p>
+              <p className="text-[15px] leading-relaxed text-ink/70 mb-3 max-w-[60ch]">
+                {product.description}
+              </p>
             )}
             {product.isPromo && product.promoText && (
               <p className="text-sm text-brand mb-3">{product.promoText}</p>
             )}
             {product.videoUrl && (
-              <video src={product.videoUrl} controls className="rounded-xl w-full mb-3" />
+              <video src={product.videoUrl} controls className="rounded-2xl w-full mb-3" />
             )}
 
             <div className="mt-auto pt-3">
-              <div className="text-3xl font-semibold tracking-[-0.03em] tabular text-ink mb-2">
+              <div className="text-[34px] leading-none font-semibold tracking-[-0.04em] tabular text-ink mb-3">
                 {product.price.toLocaleString("uk-UA")} ₴
               </div>
-              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-5">
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-6">
                 <StockBadge stock={product.stock} />
                 <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} />
               </div>
 
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-2">
                 <Stepper qty={qty} stock={product.stock} onQty={onQty} large />
                 <button
                   disabled={product.stock <= 0}
                   onClick={onAdd}
-                  className="flex-1 h-12 rounded-full bg-brand text-white text-[15px] font-semibold hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="group flex-1 min-w-0 h-12 inline-flex items-center justify-between gap-3 whitespace-nowrap rounded-full bg-brand pl-5 pr-1.5 text-white text-[15px] font-semibold hover:bg-brand-dark active:scale-[0.98] transition-all duration-300 ease-fluid disabled:opacity-40 disabled:cursor-not-allowed"
                 >
-                  Додати в кошик
+                  У кошик
+                  <span className="w-9 h-9 rounded-full bg-white/15 inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:rotate-90">
+                    <Plus size={16} weight="bold" />
+                  </span>
                 </button>
               </div>
               <SpecsButton onClick={onShowSpecs} className="w-full text-center" />
@@ -1281,31 +1341,31 @@ function QuickViewModal({
         </div>
 
         {similar.length > 0 && (
-          <div className="border-t border-black/[0.06] px-5 sm:px-8 py-5 sm:py-6">
-            <h3 className="text-sm font-semibold tracking-tight text-ink mb-3">Схожі товари</h3>
-            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+          <div className="border-t border-black/[0.05] px-5 sm:px-8 py-6">
+            <h3 className="text-[15px] font-semibold tracking-[-0.01em] text-ink mb-4">Схожі товари</h3>
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar snap-x">
               {similar.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => onSelectSimilar(s)}
-                  className="shrink-0 w-32 text-left group"
+                  className="shrink-0 w-32 text-left group snap-start"
                 >
-                  <div className="w-32 h-32 rounded-2xl bg-paper ring-1 ring-black/[0.05] overflow-hidden mb-2">
+                  <div className="w-32 h-32 rounded-[1.25rem] bg-paper overflow-hidden mb-2">
                     {s.images[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={s.images[0].url}
                         alt=""
                         loading="lazy"
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ease-fluid"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-muted/60 text-[10px]">
-                        немає фото
+                      <div className="w-full h-full flex items-center justify-center text-muted/60">
+                        <ImageSquare size={24} weight="light" />
                       </div>
                     )}
                   </div>
-                  <div className="text-xs leading-snug text-ink/80 line-clamp-2">{s.name}</div>
+                  <div className="text-xs leading-snug text-ink/75 line-clamp-2">{s.name}</div>
                   <div className="text-sm font-semibold tabular text-ink mt-0.5">
                     {s.price.toLocaleString("uk-UA")} ₴
                   </div>
