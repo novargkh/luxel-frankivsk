@@ -7,6 +7,7 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { CaretDown, ShoppingBag, SignOut } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
+import TabBar from "@/components/TabBar";
 
 const CLIENT_LINKS = [
   { href: "/", label: "Каталог" },
@@ -62,24 +63,15 @@ export default function Navbar() {
       {mobileOpen && (
         <div className="md:hidden fixed inset-0 glass glass-strong !border-0 !rounded-none overflow-y-auto">
           <nav className="px-6 pt-28 pb-12" aria-label="Меню">
-            {[{ href: "/cart", label: "Кошик" }, ...CLIENT_LINKS].map((l, i) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                style={{ ["--i" as string]: i }}
-                className={`reveal flex items-baseline justify-between py-3 text-[32px] leading-tight font-semibold tracking-[-0.03em] ${
-                  isActive(l.href) ? "text-brand" : "text-ink"
-                }`}
-              >
-                {l.label}
-                {l.href === "/cart" && totalQty > 0 && (
-                  <span className="text-base font-medium text-muted tabular">{totalQty}</span>
-                )}
-              </Link>
-            ))}
+            <p className="reveal text-[32px] leading-tight font-semibold tracking-[-0.03em] text-ink">
+              {session.user.name}
+            </p>
+            <p className="reveal mt-1 text-sm text-muted" style={{ ["--i" as string]: 1 }}>
+              {isAdmin ? "Адміністратор" : "Клієнт"}
+            </p>
 
             {isAdmin && (
-              <div className="reveal mt-8 pt-6 border-t border-black/[0.06]" style={{ ["--i" as string]: 6 }}>
+              <div className="reveal mt-8 pt-6 border-t border-black/[0.06]" style={{ ["--i" as string]: 2 }}>
                 <p className="text-sm font-medium text-muted mb-2">Адміністрування</p>
                 <div className="grid grid-cols-2 gap-x-4">
                   {ADMIN_LINKS.map((l) => (
@@ -100,10 +92,9 @@ export default function Navbar() {
             )}
 
             <div
-              className="reveal mt-10 flex items-center justify-between gap-4"
-              style={{ ["--i" as string]: 7 }}
+              className="reveal mt-10"
+              style={{ ["--i" as string]: 3 }}
             >
-              <span className="text-sm text-muted truncate">{session.user.name}</span>
               <button
                 onClick={() => signOut({ callbackUrl: "/login" })}
                 className="h-11 inline-flex items-center gap-2 rounded-full px-5 text-sm font-medium bg-ink text-white active:scale-[0.98] transition-transform duration-300 ease-fluid"
@@ -201,7 +192,7 @@ export default function Navbar() {
           <Link
             href="/cart"
             aria-label={totalQty > 0 ? `Кошик, товарів: ${totalQty}` : "Кошик"}
-            className={`relative h-10 sm:h-11 inline-flex items-center gap-2 rounded-full pl-3 pr-3 sm:pr-4 text-[14px] font-medium transition-all duration-300 ease-fluid active:scale-[0.98] ${
+            className={`relative h-10 sm:h-11 hidden md:inline-flex items-center gap-2 rounded-full pl-3 pr-3 sm:pr-4 text-[14px] font-medium transition-all duration-300 ease-fluid active:scale-[0.98] ${
               cartActive ? "bg-ink text-white" : "bg-white/60 text-ink hover:bg-white/90 ring-1 ring-white/70"
             }`}
           >
@@ -249,6 +240,7 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+      <TabBar />
     </header>
   );
 }

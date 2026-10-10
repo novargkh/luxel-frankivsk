@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { GeistSans } from "geist/font/sans";
 import "./globals.css";
 import SessionProviderWrapper from "@/components/SessionProviderWrapper";
@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   title: "LUXEL | Особистий кабінет клієнта",
   description: "Каталог товарів, залишки, акції та замовлення",
   icons: { icon: "/brand/logo.png" },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#eef0f4",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

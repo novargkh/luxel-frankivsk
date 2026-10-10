@@ -521,7 +521,7 @@ export default function CatalogPage() {
         <Navbar />
       </div>
 
-      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-10 sm:pt-16 flex-1 pb-36">
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-8 sm:pt-16 flex-1 pb-36">
         {profileIncomplete && (
           <Bezel className="reveal mb-4">
             <div className="p-5 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
@@ -912,7 +912,7 @@ export default function CatalogPage() {
 
       {/* Floating mini-cart island */}
       {cartCount > 0 && (
-        <div className="no-print fixed bottom-4 sm:bottom-6 inset-x-3 z-10 pointer-events-none">
+        <div className="no-print fixed bottom-[calc(max(env(safe-area-inset-bottom),12px)+76px)] md:bottom-6 inset-x-3 z-10 pointer-events-none">
           <div
             onPointerMove={trackLight}
             className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-full text-ink pl-6 pr-1.5 py-1.5 flex items-center justify-between gap-3"
