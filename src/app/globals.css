@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #1a1a1a;
+  /* Warm paper background + deep warm-black ink: softer and more
+     "printed catalogue" than pure white / pure black. Brand red is kept
+     as the single accent and used sparingly. */
+  --background: #f6f5f2;
+  --foreground: #17140f;
+  --paper: #f6f5f2;
+  --ink: #17140f;
+  --muted: #6e6962;
   --brand: #e92620;
   --brand-dark: #c31d18;
 }
@@ -10,16 +16,42 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-paper: var(--paper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
   --color-brand: var(--brand);
   --color-brand-dark: var(--brand-dark);
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, Helvetica, Arial, sans-serif;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: rgba(233, 38, 32, 0.18);
+}
+
+/* One consistent, visible keyboard focus ring instead of browser defaults. */
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Numbers (prices, counts) line up in columns. */
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 @media print {
@@ -38,7 +70,7 @@ body {
   display: none;
 }
 
-/* Hides the scrollbar on horizontally-scrollable strips (e.g. the navbar's
+/* Hides the scrollbar on horizontally-scrollable strips (e.g. the admin
    link row on narrow screens) while keeping them scrollable. */
 .no-scrollbar {
   scrollbar-width: none;
@@ -46,4 +78,13 @@ body {
 }
 .no-scrollbar::-webkit-scrollbar {
   display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }

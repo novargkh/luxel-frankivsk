@@ -40,9 +40,9 @@ const CATEGORY_TREE = getCategoryTree();
 function StockBadge({ stock }: { stock: number }) {
   const inStock = stock > 0;
   return (
-    <span className="inline-flex items-center gap-1.5 text-xs text-slate-500 whitespace-nowrap">
+    <span className="inline-flex items-center gap-1.5 text-[13px] text-muted whitespace-nowrap">
       <span
-        className={`inline-block w-1.5 h-1.5 rounded-full ${inStock ? "bg-emerald-500" : "bg-slate-300"}`}
+        className={`inline-block w-1.5 h-1.5 rounded-full ${inStock ? "bg-emerald-500" : "bg-black/20"}`}
       />
       {inStock ? "В наявності" : "Немає в наявності"}
     </span>
@@ -71,7 +71,7 @@ function PackagingInfo({
   // wrap so this text can never force a narrow row wider than the screen.
   return (
     <span
-      className={`text-[11px] text-slate-400 ${className ?? ""}`}
+      className={`text-xs text-muted/80 tabular ${className ?? ""}`}
       title="Шт. в упаковці / шт. в ящику"
     >
       Уп/ящ: {text}
@@ -87,7 +87,7 @@ function SpecsButton({ onClick, className }: { onClick: () => void; className?: 
         e.stopPropagation();
         onClick();
       }}
-      className={`text-xs text-brand border border-brand/40 rounded-lg px-2 py-1 hover:bg-red-50 whitespace-nowrap ${className ?? ""}`}
+      className={`h-10 inline-flex items-center justify-center text-sm font-medium text-ink rounded-full ring-1 ring-black/15 hover:ring-black/35 transition-shadow whitespace-nowrap ${className ?? ""}`}
     >
       Характеристики
     </button>
@@ -138,46 +138,47 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
   const entries = specs ? Object.entries(specs) : [];
   return (
     <div
-      className="fixed inset-0 bg-slate-900/50 z-30 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-ink/50 backdrop-blur-sm z-40 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl max-w-md w-full max-h-[80vh] overflow-y-auto"
+        className="bg-white rounded-3xl max-w-md w-full max-h-[80vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-4 border-b border-slate-100">
+        <div className="flex items-start justify-between p-5 border-b border-black/[0.06]">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Характеристики</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{product.name}</p>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">Характеристики</h2>
+            <p className="text-xs text-muted mt-0.5">{product.name}</p>
           </div>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-900 text-lg shrink-0 ml-4"
+            aria-label="Закрити"
+            className="shrink-0 ml-4 w-9 h-9 inline-flex items-center justify-center rounded-full bg-paper text-ink hover:bg-black/10 transition-colors"
           >
-            ✕
+            <CloseIcon size={14} />
           </button>
         </div>
-        <div className="p-4">
+        <div className="p-5">
           {loading ? (
-            <p className="text-sm text-slate-500">Завантаження характеристик...</p>
+            <p className="text-sm text-muted">Завантаження характеристик...</p>
           ) : entries.length > 0 ? (
-            <dl className="space-y-1.5">
+            <dl className="space-y-2">
               {entries.map(([label, value]) => (
                 <div
                   key={label}
-                  className="flex justify-between gap-3 text-sm border-b border-slate-50 pb-1.5"
+                  className="flex justify-between gap-4 text-sm border-b border-black/[0.05] pb-2"
                 >
-                  <dt className="text-slate-500">{label}</dt>
-                  <dd className="text-slate-900 text-right">{value}</dd>
+                  <dt className="text-muted">{label}</dt>
+                  <dd className="text-ink text-right font-medium">{value}</dd>
                 </div>
               ))}
             </dl>
           ) : failed ? (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted">
               Не вдалося завантажити характеристики. Спробуйте ще раз пізніше.
             </p>
           ) : (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted">
               Для цього товару характеристики на luxel.ua не знайдено.
             </p>
           )}
@@ -502,22 +503,24 @@ export default function CatalogPage() {
 
   const profileIncomplete = !loading && shops.length === 0;
 
+  const heroCount = products.length;
+
   return (
     <div className="min-h-screen flex flex-col">
       <div ref={navRef} className="sticky top-0 z-20">
         <Navbar />
       </div>
 
-      <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1 pb-24">
+      <main className="max-w-6xl mx-auto w-full px-4 sm:px-6 pt-8 sm:pt-12 flex-1 pb-32">
         {profileIncomplete && (
-          <div className="mb-6 rounded-xl border border-brand/30 bg-red-50 p-4 flex items-center justify-between gap-3 flex-wrap">
-            <p className="text-sm text-slate-700">
+          <div className="mb-6 rounded-2xl bg-brand/[0.06] ring-1 ring-brand/20 p-4 sm:p-5 flex items-center justify-between gap-4 flex-wrap">
+            <p className="text-sm leading-relaxed text-ink/80 max-w-xl">
               Щоб оформлювати замовлення, заповніть профіль і додайте хоча б один
               магазин (адресу доставки). Товари можна додавати в кошик вже зараз.
             </p>
             <Link
               href="/profile"
-              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark whitespace-nowrap"
+              className="inline-flex items-center h-10 rounded-full bg-ink text-white text-sm font-medium px-5 hover:bg-black transition-colors whitespace-nowrap"
             >
               Заповнити профіль
             </Link>
@@ -525,50 +528,86 @@ export default function CatalogPage() {
         )}
 
         {announcements.length > 0 && showAnnouncements && (
-          <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 p-4 relative">
+          <section className="mb-8 rounded-2xl bg-white ring-1 ring-black/[0.06] shadow-[0_1px_2px_rgba(23,20,15,0.04)] p-5 relative">
             <button
               onClick={() => setShowAnnouncements(false)}
-              className="absolute top-3 right-3 text-amber-700 text-sm hover:text-amber-900"
+              className="absolute top-3 right-3 w-8 h-8 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-paper transition-colors"
               aria-label="Приховати"
             >
-              ✕
+              <CloseIcon size={14} />
             </button>
-            <h2 className="text-sm font-semibold text-amber-900 mb-2">Сповіщення</h2>
-            <div className="space-y-2">
+            <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-muted mb-3">
+              <span className="w-1.5 h-1.5 rounded-full bg-brand" />
+              Сповіщення
+            </h2>
+            <div className="space-y-2 pr-8">
               {announcements.slice(0, 3).map((a) => (
-                <div key={a.id} className="text-sm text-amber-900">
-                  <span className="font-medium">{a.title}:</span> {a.body}
-                </div>
+                <p key={a.id} className="text-sm leading-relaxed text-ink/85">
+                  <span className="font-semibold text-ink">{a.title}.</span> {a.body}
+                </p>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        <h1 className="text-lg font-semibold text-slate-900 mb-4">Каталог товарів</h1>
+        <header className="mb-8 sm:mb-10">
+          <p className="text-[11px] sm:text-xs font-semibold uppercase tracking-[0.2em] text-brand mb-3">
+            Оптовий кабінет LUXEL
+          </p>
+          <h1 className="text-[40px] leading-[1.02] sm:text-6xl font-semibold tracking-[-0.035em] text-ink">
+            Каталог товарів
+          </h1>
+          {!loading && heroCount > 0 && (
+            <p className="mt-3 sm:mt-4 text-[15px] sm:text-lg text-muted tracking-[-0.01em] tabular">
+              {heroCount.toLocaleString("uk-UA")} {plural(heroCount, "позиція", "позиції", "позицій")} в
+              каталозі
+            </p>
+          )}
+        </header>
 
         {/* Search + filters — sticky under the navbar so it stays reachable
             while scrolling through a long, expanded catalog. On mobile the
             extra filters collapse into a toggled panel so they don't
             permanently eat screen space. */}
         <div
-          className="sticky z-10 -mx-4 px-4 py-3 mb-5 bg-white/95 backdrop-blur-sm border-b border-slate-100"
+          className="sticky z-10 -mx-4 sm:-mx-6 px-4 sm:px-6 py-3 mb-6 bg-paper/85 backdrop-blur-xl"
           style={{ top: navHeight }}
         >
           {/* Row 1: search (always visible) + mobile filter toggle */}
           <div className="flex gap-2 items-center">
-            <input
-              placeholder="Пошук товару за назвою чи описом..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="flex-1 min-w-0 border border-slate-300 rounded-lg px-3 py-2 text-sm"
-            />
+            <div className="relative flex-1 min-w-0">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
+                <SearchIcon />
+              </span>
+              <input
+                type="text"
+                inputMode="search"
+                placeholder="Назва або артикул"
+                aria-label="Пошук товару"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full h-12 rounded-2xl bg-white pl-11 pr-11 text-[15px] text-ink placeholder:text-muted/70 ring-1 ring-black/10 shadow-[0_1px_2px_rgba(23,20,15,0.04)] focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-ink transition-shadow"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  aria-label="Очистити пошук"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 w-8 h-8 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-paper transition-colors"
+                >
+                  <CloseIcon size={14} />
+                </button>
+              )}
+            </div>
             <button
               onClick={() => setMobileFiltersOpen((v) => !v)}
-              className="sm:hidden relative shrink-0 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700 whitespace-nowrap"
+              aria-expanded={mobileFiltersOpen}
+              className="sm:hidden relative shrink-0 h-12 inline-flex items-center gap-2 rounded-2xl bg-white px-4 text-sm font-medium text-ink ring-1 ring-black/10 whitespace-nowrap"
             >
+              <FilterIcon />
               Фільтри
               {activeExtraFilterCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-brand text-white text-[10px] leading-[1.1rem] text-center">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[11px] leading-5 text-center font-semibold">
                   {activeExtraFilterCount}
                 </span>
               )}
@@ -576,80 +615,84 @@ export default function CatalogPage() {
           </div>
 
           {/* Desktop: full filter row, always visible. Category navigation
-              itself now lives in the collapsible tree below (group ->
-              subcategory -> products) instead of a pair of <select>s. */}
-          <div className="hidden sm:flex gap-2 items-center flex-wrap mt-2">
-            <select
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
-            >
-              <option value="default">Сортування: за замовчуванням</option>
-              <option value="price-asc">Ціна: від дешевих</option>
-              <option value="price-desc">Ціна: від дорогих</option>
-              <option value="name-asc">За назвою (А-Я)</option>
-            </select>
-            <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
-              <input type="checkbox" checked={promoOnly} onChange={(e) => setPromoOnly(e.target.checked)} />
-              Тільки акційні
-            </label>
-            <label className="flex items-center gap-1.5 text-sm text-slate-700 whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={inStockOnly}
-                onChange={(e) => setInStockOnly(e.target.checked)}
-              />
-              Тільки в наявності
-            </label>
-            {isFiltering && (
-              <button
-                onClick={resetFilters}
-                className="text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-2 whitespace-nowrap"
-              >
-                Скинути фільтри
-              </button>
-            )}
-          </div>
-
-          {/* Mobile: collapsible filter panel — picking a select/checkbox
-              value applies it immediately and closes the panel. */}
-          {mobileFiltersOpen && (
-            <div className="sm:hidden mt-2 border border-slate-200 rounded-lg p-3 bg-white space-y-2">
+              itself lives in the collapsible tree below (group ->
+              subcategory -> products). */}
+          <div className="hidden sm:flex gap-2 items-center flex-wrap mt-3">
+            <div className="relative">
               <select
                 value={sortOrder}
-                onChange={(e) => {
-                  setSortOrder(e.target.value as typeof sortOrder);
-                  setMobileFiltersOpen(false);
-                }}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+                onChange={(e) => setSortOrder(e.target.value as typeof sortOrder)}
+                aria-label="Сортування"
+                className="appearance-none h-10 rounded-full bg-white pl-4 pr-9 text-sm font-medium text-ink ring-1 ring-black/10 hover:ring-black/25 transition-shadow cursor-pointer"
               >
                 <option value="default">Сортування: за замовчуванням</option>
                 <option value="price-asc">Ціна: від дешевих</option>
                 <option value="price-desc">Ціна: від дорогих</option>
                 <option value="name-asc">За назвою (А-Я)</option>
               </select>
-              <label className="flex items-center gap-1.5 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={promoOnly}
+              <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
+                <Chevron size={14} />
+              </span>
+            </div>
+            <ToggleChip active={promoOnly} onClick={() => setPromoOnly((v) => !v)}>
+              Тільки акційні
+            </ToggleChip>
+            <ToggleChip active={inStockOnly} onClick={() => setInStockOnly((v) => !v)}>
+              Тільки в наявності
+            </ToggleChip>
+            {isFiltering && (
+              <button
+                onClick={resetFilters}
+                className="h-10 rounded-full px-3 text-sm text-muted hover:text-ink underline-offset-4 hover:underline transition-colors whitespace-nowrap"
+              >
+                Скинути фільтри
+              </button>
+            )}
+          </div>
+
+          {/* Mobile: collapsible filter panel — picking a select/toggle
+              value applies it immediately and closes the panel. */}
+          {mobileFiltersOpen && (
+            <div className="sm:hidden mt-2 rounded-2xl bg-white ring-1 ring-black/10 shadow-lg p-4 space-y-3">
+              <div className="relative">
+                <select
+                  value={sortOrder}
                   onChange={(e) => {
-                    setPromoOnly(e.target.checked);
+                    setSortOrder(e.target.value as typeof sortOrder);
                     setMobileFiltersOpen(false);
                   }}
-                />
-                Тільки акційні
-              </label>
-              <label className="flex items-center gap-1.5 text-sm text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={inStockOnly}
-                  onChange={(e) => {
-                    setInStockOnly(e.target.checked);
+                  aria-label="Сортування"
+                  className="appearance-none w-full h-11 rounded-xl bg-paper pl-4 pr-9 text-sm font-medium text-ink"
+                >
+                  <option value="default">Сортування: за замовчуванням</option>
+                  <option value="price-asc">Ціна: від дешевих</option>
+                  <option value="price-desc">Ціна: від дорогих</option>
+                  <option value="name-asc">За назвою (А-Я)</option>
+                </select>
+                <span className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none">
+                  <Chevron size={14} />
+                </span>
+              </div>
+              <div className="flex gap-2 flex-wrap">
+                <ToggleChip
+                  active={promoOnly}
+                  onClick={() => {
+                    setPromoOnly((v) => !v);
                     setMobileFiltersOpen(false);
                   }}
-                />
-                Тільки в наявності
-              </label>
+                >
+                  Тільки акційні
+                </ToggleChip>
+                <ToggleChip
+                  active={inStockOnly}
+                  onClick={() => {
+                    setInStockOnly((v) => !v);
+                    setMobileFiltersOpen(false);
+                  }}
+                >
+                  Тільки в наявності
+                </ToggleChip>
+              </div>
               <div className="flex gap-2 pt-1">
                 {isFiltering && (
                   <button
@@ -657,14 +700,14 @@ export default function CatalogPage() {
                       resetFilters();
                       setMobileFiltersOpen(false);
                     }}
-                    className="flex-1 text-sm text-slate-500 hover:text-slate-900 border border-slate-200 rounded-lg px-3 py-2"
+                    className="flex-1 h-11 rounded-full text-sm font-medium text-ink ring-1 ring-black/15"
                   >
                     Скинути
                   </button>
                 )}
                 <button
                   onClick={() => setMobileFiltersOpen(false)}
-                  className="flex-1 bg-brand text-white text-sm rounded-lg px-3 py-2 hover:bg-brand-dark"
+                  className="flex-1 h-11 rounded-full bg-ink text-white text-sm font-medium"
                 >
                   Готово
                 </button>
@@ -673,44 +716,84 @@ export default function CatalogPage() {
           )}
         </div>
 
+        {isFiltering && !loading && (
+          <p className="mb-4 text-sm text-muted tabular">
+            Знайдено: <span className="text-ink font-medium">{filtered.length}</span>
+          </p>
+        )}
+
         {loading ? (
-          <p className="text-sm text-slate-500">Завантаження...</p>
+          <div className="space-y-3" aria-busy="true" aria-label="Завантаження каталогу">
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-[76px] sm:h-[88px] rounded-2xl bg-white ring-1 ring-black/[0.06] animate-pulse flex items-center gap-4 px-5"
+              >
+                <div className="w-6 h-3 rounded bg-paper" />
+                <div className="h-5 rounded bg-paper" style={{ width: `${30 + ((i * 13) % 30)}%` }} />
+                <div className="ml-auto w-9 h-9 rounded-full bg-paper" />
+              </div>
+            ))}
+          </div>
         ) : treeGroups.length === 0 ? (
-          <p className="text-sm text-slate-500">Нічого не знайдено.</p>
+          <div className="rounded-2xl bg-white ring-1 ring-black/[0.06] px-6 py-14 text-center">
+            <p className="text-lg font-semibold tracking-tight text-ink">Нічого не знайдено</p>
+            <p className="mt-1 text-sm text-muted">Спробуйте змінити запит або прибрати фільтри.</p>
+            {isFiltering && (
+              <button
+                onClick={resetFilters}
+                className="mt-5 h-10 rounded-full bg-ink text-white text-sm font-medium px-5"
+              >
+                Скинути фільтри
+              </button>
+            )}
+          </div>
         ) : (
           <div className="space-y-3">
-            {treeGroups.map((g) => {
+            {treeGroups.map((g, gi) => {
               const groupOpen = isFiltering || expandedGroups.has(g.key);
               return (
-                <div key={g.key} className="border border-slate-200 bg-white rounded-xl overflow-hidden">
+                <section
+                  key={g.key}
+                  className={`rounded-2xl bg-white ring-1 overflow-hidden transition-shadow duration-300 ${
+                    groupOpen
+                      ? "ring-black/10 shadow-[0_10px_30px_-12px_rgba(23,20,15,0.18)]"
+                      : "ring-black/[0.06] shadow-[0_1px_2px_rgba(23,20,15,0.04)] hover:ring-black/15"
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() => toggleGroup(g.key)}
                     aria-expanded={groupOpen}
-                    className={`w-full flex items-center justify-between px-4 py-3 text-left transition-all duration-150 ease-out active:scale-[0.995] ${
-                      groupOpen
-                        ? "bg-brand/10 ring-1 ring-inset ring-brand/30"
-                        : "bg-slate-100 hover:bg-slate-200 active:bg-slate-200"
-                    }`}
+                    className="w-full flex items-center gap-3 sm:gap-5 px-4 sm:px-6 py-4 sm:py-5 text-left"
                   >
-                    <span className={`text-sm font-semibold ${groupOpen ? "text-brand" : "text-slate-900"}`}>
-                      {g.label}{" "}
-                      <span className="text-xs font-normal text-slate-400">({g.total})</span>
-                    </span>
                     <span
-                      className={`transition-all duration-200 ${
-                        groupOpen ? "text-brand rotate-180" : "text-slate-400"
+                      className={`w-6 sm:w-8 shrink-0 text-xs font-semibold tabular tracking-wider transition-colors ${
+                        groupOpen ? "text-brand" : "text-muted/70"
                       }`}
                     >
-                      ▾
+                      {String(gi + 1).padStart(2, "0")}
+                    </span>
+                    <span className="flex-1 min-w-0 text-[17px] sm:text-2xl font-semibold tracking-[-0.02em] text-ink">
+                      {g.label}
+                    </span>
+                    <span className="shrink-0 rounded-full bg-paper px-2.5 py-1 text-xs font-medium text-muted tabular">
+                      {g.total}
+                    </span>
+                    <span
+                      className={`shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-full transition-all duration-300 ${
+                        groupOpen ? "bg-ink text-white rotate-180" : "bg-paper text-ink"
+                      }`}
+                    >
+                      <Chevron size={16} />
                     </span>
                   </button>
 
                   {groupOpen && (
-                    <div>
+                    <div className="border-t border-black/[0.06]">
                       {/* Each subcategory owns its expanding product section:
                           button -> its filters -> its products -> next button. */}
-                      <div className="divide-y divide-slate-100">
+                      <div className="divide-y divide-black/[0.06]">
                         {g.categories.map(([category, items]) => {
                           // A broad top-level category with no real child
                           // (for example "Аксесуари") renders its products
@@ -726,22 +809,24 @@ export default function CatalogPage() {
                                   type="button"
                                   onClick={() => toggleCategory(category)}
                                   aria-expanded={isOpen}
-                                  className={`w-full flex items-center justify-between px-4 py-2.5 pl-6 text-left transition-all duration-150 ease-out active:scale-[0.995] ${
-                                    isOpen
-                                      ? "bg-brand/10 text-brand ring-1 ring-inset ring-brand/25"
-                                      : "bg-slate-50 text-slate-800 hover:bg-slate-100 active:bg-slate-200"
+                                  className={`w-full flex items-center gap-3 pl-[52px] sm:pl-[76px] pr-4 sm:pr-6 py-3.5 text-left transition-colors ${
+                                    isOpen ? "bg-paper/70" : "hover:bg-paper/50"
                                   }`}
                                 >
-                                  <span className={`text-sm font-medium ${isOpen ? "text-brand" : "text-slate-800"}`}>
-                                    {category}{" "}
-                                    <span className="text-xs font-normal text-slate-400">({items.length})</span>
-                                  </span>
                                   <span
-                                    className={`transition-all duration-200 ${
-                                      isOpen ? "text-brand rotate-180" : "text-slate-400"
+                                    className={`flex-1 min-w-0 text-[15px] sm:text-base font-medium tracking-[-0.01em] ${
+                                      isOpen ? "text-ink" : "text-ink/80"
                                     }`}
                                   >
-                                    ▾
+                                    {category}
+                                  </span>
+                                  <span className="text-xs text-muted tabular">{items.length}</span>
+                                  <span
+                                    className={`shrink-0 transition-all duration-300 ${
+                                      isOpen ? "text-brand rotate-180" : "text-muted"
+                                    }`}
+                                  >
+                                    <Chevron size={16} />
                                   </span>
                                 </button>
                               )}
@@ -756,33 +841,47 @@ export default function CatalogPage() {
                               >
                                 <div className="min-h-0 overflow-hidden">
                                   {attrDefs.length > 0 && (
-                                    <div className="flex gap-2 flex-wrap px-4 py-2 bg-white border-b border-slate-100">
+                                    <div className="flex gap-2 flex-wrap px-4 sm:px-6 py-3 bg-paper/70 border-t border-black/[0.04]">
                                       {attrDefs.map((def) => {
                                         const filterKey = `${category}|${def.key}`;
+                                        const current = attrFilterValues[filterKey] ?? "";
                                         return (
-                                          <select
-                                            key={def.key}
-                                            value={attrFilterValues[filterKey] ?? ""}
-                                            onChange={(e) =>
-                                              setAttrFilterValues((prev) => ({
-                                                ...prev,
-                                                [filterKey]: e.target.value,
-                                              }))
-                                            }
-                                            className="border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-700"
-                                          >
-                                            <option value="">{def.label}: всі</option>
-                                            {def.options.map((v) => (
-                                              <option key={v} value={v}>
-                                                {def.format ? def.format(v) : v}
-                                              </option>
-                                            ))}
-                                          </select>
+                                          <div key={def.key} className="relative">
+                                            <select
+                                              value={current}
+                                              onChange={(e) =>
+                                                setAttrFilterValues((prev) => ({
+                                                  ...prev,
+                                                  [filterKey]: e.target.value,
+                                                }))
+                                              }
+                                              aria-label={def.label}
+                                              className={`appearance-none h-8 rounded-full pl-3 pr-7 text-xs font-medium cursor-pointer transition-colors ${
+                                                current
+                                                  ? "bg-ink text-white"
+                                                  : "bg-white text-ink ring-1 ring-black/10 hover:ring-black/25"
+                                              }`}
+                                            >
+                                              <option value="">{def.label}: всі</option>
+                                              {def.options.map((v) => (
+                                                <option key={v} value={v}>
+                                                  {def.format ? def.format(v) : v}
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <span
+                                              className={`absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none ${
+                                                current ? "text-white" : "text-muted"
+                                              }`}
+                                            >
+                                              <Chevron size={12} />
+                                            </span>
+                                          </div>
                                         );
                                       })}
                                     </div>
                                   )}
-                                  <div className="divide-y divide-slate-100">
+                                  <div className="divide-y divide-black/[0.05] border-t border-black/[0.06]">
                                     {items.map((p) => (
                                       <ProductRow
                                         key={p.id}
@@ -801,29 +900,31 @@ export default function CatalogPage() {
                       </div>
                     </div>
                   )}
-                </div>
+                </section>
               );
             })}
           </div>
         )}
       </main>
 
-      {/* Sticky mini-cart bar */}
+      {/* Floating mini-cart */}
       {cartCount > 0 && (
-        <div className="no-print fixed bottom-0 inset-x-0 border-t border-slate-200 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.06)] z-10">
-          <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-            <span className="text-sm text-slate-600">
-              У кошику: <span className="font-semibold text-slate-900">{cartCount}</span>{" "}
-              {cartCount === 1 ? "товар" : "товарів"} на{" "}
-              <span className="font-semibold text-slate-900">
+        <div className="no-print fixed bottom-4 inset-x-4 z-10 pointer-events-none">
+          <div className="pointer-events-auto mx-auto max-w-xl rounded-2xl bg-ink text-white shadow-[0_20px_50px_-12px_rgba(23,20,15,0.55)] pl-5 pr-2 py-2 flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="text-xs text-white/60 tabular">
+                {cartCount} {plural(cartCount, "товар", "товари", "товарів")} у кошику
+              </div>
+              <div className="text-lg font-semibold tracking-tight tabular">
                 {cartTotal.toLocaleString("uk-UA")} ₴
-              </span>
-            </span>
+              </div>
+            </div>
             <Link
               href="/cart"
-              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 h-11 rounded-xl bg-brand px-5 text-sm font-semibold text-white hover:bg-brand-dark transition-colors whitespace-nowrap"
             >
-              Перейти до кошика →
+              До кошика
+              <span aria-hidden="true">→</span>
             </Link>
           </div>
         </div>
@@ -849,6 +950,134 @@ export default function CatalogPage() {
   );
 }
 
+// ───────────────────────── small UI pieces ─────────────────────────
+
+function plural(n: number, one: string, few: string, many: string) {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return one;
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return few;
+  return many;
+}
+
+function Chevron({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M16 16l4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 7h10M18 7h2M4 17h2M10 17h10"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+      <circle cx="16" cy="7" r="2" stroke="currentColor" strokeWidth="1.8" />
+      <circle cx="8" cy="17" r="2" stroke="currentColor" strokeWidth="1.8" />
+    </svg>
+  );
+}
+
+function ToggleChip({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`h-10 inline-flex items-center rounded-full px-4 text-sm font-medium whitespace-nowrap transition-colors ${
+        active ? "bg-ink text-white" : "bg-white text-ink ring-1 ring-black/10 hover:ring-black/25"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// [−] 12 [+] pill. QtyInput keeps its own typing/clamping behaviour; the
+// buttons just step by one.
+function Stepper({
+  qty,
+  stock,
+  onQty,
+  large,
+}: {
+  qty: number;
+  stock: number;
+  onQty: (q: number) => void;
+  large?: boolean;
+}) {
+  const disabled = stock <= 0;
+  const h = large ? "h-12" : "h-10";
+  const btn = `${large ? "w-12 h-12" : "w-10 h-10"} shrink-0 inline-flex items-center justify-center rounded-full text-ink transition-colors disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-black/5 enabled:active:bg-black/10`;
+  return (
+    <div
+      className={`inline-flex items-center ${h} rounded-full bg-white transition-shadow focus-within:ring-2 focus-within:ring-ink ${
+        qty > 0 ? "ring-1 ring-ink/70" : "ring-1 ring-black/10"
+      } ${disabled ? "opacity-60" : ""}`}
+    >
+      <button
+        type="button"
+        aria-label="Менше"
+        disabled={disabled || qty <= 0}
+        onClick={() => onQty(Math.max(0, qty - 1))}
+        className={btn}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+      <QtyInput
+        value={qty}
+        max={stock}
+        disabled={disabled}
+        onChange={onQty}
+        className="w-10 h-8 bg-transparent text-center text-[15px] font-semibold tabular text-ink focus:outline-none disabled:text-muted"
+      />
+      <button
+        type="button"
+        aria-label="Більше"
+        disabled={disabled || qty >= stock}
+        onClick={() => onQty(qty + 1)}
+        className={btn}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
 function ProductRow({
   product,
   qty,
@@ -860,89 +1089,75 @@ function ProductRow({
   onQty: (q: number) => void;
   onOpen: () => void;
 }) {
-  const qtyControls = (
-    <div className="shrink-0 flex items-center gap-1">
-      <QtyInput
-        value={qty}
-        max={product.stock}
-        disabled={product.stock <= 0}
-        onChange={onQty}
-        className="w-14 border border-slate-300 rounded-lg px-2 py-1 text-sm disabled:bg-slate-100"
-      />
-      <button
-        disabled={product.stock <= 0}
-        onClick={() => onQty(qty + 1)}
-        className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 hover:bg-slate-100 disabled:opacity-40"
-      >
-        +1
-      </button>
-    </div>
-  );
+  const stepper = <Stepper qty={qty} stock={product.stock} onQty={onQty} />;
 
   return (
-    <div className="px-4 py-3 hover:bg-slate-50 transition">
+    <div className="px-4 sm:px-6 py-4 hover:bg-paper/40 transition-colors">
       {/* Image + name always share the top line, full width, so the name
           gets real space instead of being squeezed by price/qty columns. */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 sm:gap-4">
         <button
           onClick={onOpen}
-          className="shrink-0 w-14 h-14 rounded-lg bg-slate-100 overflow-hidden relative"
+          aria-label={`Переглянути: ${product.name}`}
+          className="shrink-0 w-16 h-16 rounded-xl bg-paper ring-1 ring-black/[0.05] overflow-hidden relative"
         >
           {product.images[0] ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={product.images[0].url}
-              alt={product.name}
+              alt=""
+              loading="lazy"
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
+            <div className="w-full h-full flex items-center justify-center text-muted/60 text-[10px] leading-tight text-center px-1">
               немає фото
             </div>
           )}
           {product.isPromo && (
-            <span className="absolute -top-1 -left-1 bg-brand text-white text-[9px] px-1 rounded">
-              %
+            <span className="absolute left-1 top-1 rounded-full bg-brand text-white text-[9px] font-semibold px-1.5 py-px">
+              Акція
             </span>
           )}
         </button>
 
         <button onClick={onOpen} className="flex-1 min-w-0 text-left">
-          <div className="text-sm font-medium text-slate-900 line-clamp-2 sm:truncate">
+          <div className="text-[15px] font-medium leading-snug tracking-[-0.01em] text-ink line-clamp-2 sm:truncate">
             {product.name}
           </div>
           {product.description && (
-            <div className="hidden sm:block text-xs text-slate-500 truncate">
+            <div className="hidden sm:block text-[13px] text-muted truncate mt-0.5">
               {product.description}
             </div>
           )}
           {product.isPromo && product.promoText && (
-            <div className="hidden sm:block text-xs text-brand truncate">{product.promoText}</div>
+            <div className="hidden sm:block text-[13px] text-brand truncate">{product.promoText}</div>
           )}
-          <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} className="hidden sm:inline-block mt-0.5" />
+          <PackagingInfo
+            packQty={product.packQty}
+            boxQty={product.boxQty}
+            className="hidden sm:inline-block mt-0.5"
+          />
         </button>
 
-        <div className="hidden sm:flex w-28 shrink-0 justify-end">
+        <div className="hidden sm:flex w-36 shrink-0 justify-end">
           <StockBadge stock={product.stock} />
         </div>
 
-        <div className="hidden sm:block text-sm font-semibold text-slate-900 w-24 shrink-0 text-right">
+        <div className="hidden sm:block text-[17px] font-semibold tracking-tight tabular text-ink w-28 shrink-0 text-right">
           {product.price.toLocaleString("uk-UA")} ₴
         </div>
 
-        <div className="hidden sm:flex">{qtyControls}</div>
+        <div className="hidden sm:flex shrink-0">{stepper}</div>
       </div>
 
       {/* Price + stock + qty move to a second line on mobile so the row
-          never forces horizontal scrolling on narrow screens. The price/
-          stock/packaging block gets min-w-0 so its text can wrap instead
-          of forcing the row wider than the screen and clipping qtyControls
-          off the edge (the card wrapper clips overflow rather than
-          scrolling it) — qtyControls itself is shrink-0 so it always stays
-          fully visible. */}
-      <div className="flex sm:hidden items-start justify-between gap-2 mt-2 pl-[68px]">
+          never forces horizontal scrolling on narrow screens. The text
+          block gets min-w-0 so it can wrap instead of pushing the stepper
+          off the edge; the stepper itself is shrink-0. */}
+      <div className="flex sm:hidden items-end justify-between gap-3 mt-3 pl-[76px]">
         <div className="flex flex-col min-w-0">
-          <span className="text-sm font-semibold text-slate-900">
+          <span className="text-lg font-semibold tracking-tight tabular text-ink leading-none mb-1.5">
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
           <StockBadge stock={product.stock} />
@@ -952,7 +1167,7 @@ function ProductRow({
             className="mt-0.5 whitespace-normal"
           />
         </div>
-        <div className="shrink-0">{qtyControls}</div>
+        <div className="shrink-0">{stepper}</div>
       </div>
     </div>
   );
@@ -979,71 +1194,83 @@ function QuickViewModal({
 }) {
   return (
     <div
-      className="fixed inset-0 bg-slate-900/50 z-20 flex items-center justify-center p-4"
+      className="fixed inset-0 bg-ink/50 backdrop-blur-sm z-30 flex items-end sm:items-center justify-center sm:p-6"
       onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label={product.name}
     >
       <div
-        className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-t-3xl sm:rounded-3xl max-w-3xl w-full max-h-[92vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-4 border-b border-slate-100">
-          <h2 className="text-base font-semibold text-slate-900 pr-6">{product.name}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-900 text-lg">
-            ✕
+        <div className="flex items-start justify-between gap-4 px-5 sm:px-8 pt-5 sm:pt-7">
+          <div className="min-w-0">
+            {product.category && (
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted mb-1.5">
+                {normalizeCategory(product.category)}
+              </p>
+            )}
+            <h2 className="text-xl sm:text-2xl font-semibold leading-tight tracking-[-0.02em] text-ink">
+              {product.name}
+            </h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Закрити"
+            className="shrink-0 w-10 h-10 inline-flex items-center justify-center rounded-full bg-paper text-ink hover:bg-black/10 transition-colors"
+          >
+            <CloseIcon size={16} />
           </button>
         </div>
 
-        <div className="p-4 grid sm:grid-cols-2 gap-4">
-          <div className="aspect-square bg-slate-100 rounded-lg overflow-hidden">
+        <div className="px-5 sm:px-8 py-5 grid sm:grid-cols-2 gap-5 sm:gap-8">
+          <div className="aspect-square bg-paper rounded-2xl overflow-hidden ring-1 ring-black/[0.05]">
             {product.images[0] ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={product.images[0].url}
                 alt={product.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
               />
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">
+              <div className="w-full h-full flex items-center justify-center text-muted/60 text-sm">
                 немає фото
               </div>
             )}
           </div>
 
           <div className="flex flex-col">
-            {product.category && (
-              <span className="text-xs text-slate-400 mb-1">{normalizeCategory(product.category)}</span>
+            {product.isPromo && (
+              <span className="self-start mb-3 rounded-full bg-brand text-white text-[11px] font-semibold px-2.5 py-1">
+                Акція
+              </span>
             )}
             {product.description && (
-              <p className="text-sm text-slate-600 mb-2">{product.description}</p>
+              <p className="text-[15px] leading-relaxed text-ink/75 mb-3">{product.description}</p>
             )}
             {product.isPromo && product.promoText && (
-              <p className="text-sm text-brand mb-2">{product.promoText}</p>
+              <p className="text-sm text-brand mb-3">{product.promoText}</p>
             )}
             {product.videoUrl && (
-              <video src={product.videoUrl} controls className="rounded-lg w-full mb-2" />
+              <video src={product.videoUrl} controls className="rounded-xl w-full mb-3" />
             )}
 
-            <div className="mt-auto pt-2">
-              <div className="text-xl font-semibold text-slate-900 mb-1">
+            <div className="mt-auto pt-3">
+              <div className="text-3xl font-semibold tracking-[-0.03em] tabular text-ink mb-2">
                 {product.price.toLocaleString("uk-UA")} ₴
               </div>
-              <div className="flex items-center gap-3 mb-3">
+              <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-5">
                 <StockBadge stock={product.stock} />
                 <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} />
               </div>
 
-              <div className="flex items-center gap-2 mb-2">
-                <QtyInput
-                  value={qty}
-                  max={product.stock}
-                  disabled={product.stock <= 0}
-                  onChange={onQty}
-                  className="w-16 border border-slate-300 rounded-lg px-2 py-1.5 text-sm disabled:bg-slate-100"
-                />
+              <div className="flex items-center gap-2 mb-3">
+                <Stepper qty={qty} stock={product.stock} onQty={onQty} large />
                 <button
                   disabled={product.stock <= 0}
                   onClick={onAdd}
-                  className="flex-1 bg-brand text-white rounded-lg py-1.5 text-sm font-medium hover:bg-brand-dark disabled:opacity-50"
+                  className="flex-1 h-12 rounded-full bg-brand text-white text-[15px] font-semibold hover:bg-brand-dark transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   Додати в кошик
                 </button>
@@ -1054,31 +1281,32 @@ function QuickViewModal({
         </div>
 
         {similar.length > 0 && (
-          <div className="border-t border-slate-100 p-4">
-            <h3 className="text-sm font-semibold text-slate-900 mb-2">Схожі товари</h3>
-            <div className="flex gap-3 overflow-x-auto pb-1">
+          <div className="border-t border-black/[0.06] px-5 sm:px-8 py-5 sm:py-6">
+            <h3 className="text-sm font-semibold tracking-tight text-ink mb-3">Схожі товари</h3>
+            <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
               {similar.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => onSelectSimilar(s)}
-                  className="shrink-0 w-28 text-left"
+                  className="shrink-0 w-32 text-left group"
                 >
-                  <div className="w-28 h-28 rounded-lg bg-slate-100 overflow-hidden mb-1">
+                  <div className="w-32 h-32 rounded-2xl bg-paper ring-1 ring-black/[0.05] overflow-hidden mb-2">
                     {s.images[0] ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={s.images[0].url}
-                        alt={s.name}
-                        className="w-full h-full object-cover"
+                        alt=""
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-slate-300 text-[10px]">
+                      <div className="w-full h-full flex items-center justify-center text-muted/60 text-[10px]">
                         немає фото
                       </div>
                     )}
                   </div>
-                  <div className="text-xs text-slate-700 line-clamp-2">{s.name}</div>
-                  <div className="text-xs font-semibold text-slate-900">
+                  <div className="text-xs leading-snug text-ink/80 line-clamp-2">{s.name}</div>
+                  <div className="text-sm font-semibold tabular text-ink mt-0.5">
                     {s.price.toLocaleString("uk-UA")} ₴
                   </div>
                 </button>
