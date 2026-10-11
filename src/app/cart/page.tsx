@@ -196,14 +196,14 @@ export default function CartPage() {
         {profileIncomplete && (
           <div className="mb-6 rounded-xl border border-brand/30 bg-red-50 p-4 flex items-center justify-between gap-3 flex-wrap">
             <p className="text-sm text-slate-700">
-              Щоб оформити замовлення, заповніть профіль і додайте хоча б один магазин
-              (адресу доставки).
+              Щоб оформити замовлення, потрібна адреса доставки. Попросіть менеджера
+              додати її: надішліть запит у профілі.
             </p>
             <Link
               href="/profile"
               className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark whitespace-nowrap"
             >
-              Заповнити профіль
+              Надіслати запит
             </Link>
           </div>
         )}

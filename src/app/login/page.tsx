@@ -26,7 +26,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res?.error) {
-      setError("Невірний email або пароль");
+      setError("Невірний логін або пароль. Якщо пароля ще немає, зверніться до менеджера.");
       return;
     }
 
@@ -50,15 +50,16 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Email
+              Email або телефон
             </label>
             <input
-              type="email"
+              type="text"
+              autoComplete="username"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand"
-              placeholder="you@company.com"
+              placeholder="you@company.com або 050 123 45 67"
             />
           </div>
 

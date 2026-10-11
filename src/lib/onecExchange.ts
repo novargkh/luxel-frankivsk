@@ -150,7 +150,7 @@ export function readCookie(req: Request, name: string): string | undefined {
 // ---------------------------------------------------------------------
 
 export type ClientMatch =
-  | { ok: true; basId: string | null; email: string; phone: string }
+  | { ok: true; basId: string | null; email: string | null; phone: string }
   | { ok: false; reason: string };
 
 export function matchClient(user: Pick<User, "basId" | "email" | "phone" | "name">): ClientMatch {

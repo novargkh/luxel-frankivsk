@@ -42,8 +42,13 @@ enum BasExchangeStatus {
 
 model User {
   id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
+  // Login is by email or phone. Clients imported from BAS may come
+  // without an email, so it is optional.
+  email        String?  @unique
+  // Empty until an admin issues a password (clients imported from BAS
+  // can't log in before that).
+  passwordHash String   @default("")
+  passwordIssuedAt DateTime?
   name         String
   company      String?
   // Client's own contact phone (distinct from a Shop's delivery-point
@@ -56,6 +61,10 @@ model User {
   // of email+phone. Never set automatically; the portal never creates BAS
   // contractors itself.
   basId        String?  @unique
+  // ЄДРПОУ / ІПН from BAS.
+  taxCode      String?
+  // A blocked client can't log in.
+  isActive     Boolean  @default(true)
   role         Role     @default(CLIENT)
   createdAt    DateTime @default(now())
 
@@ -64,6 +73,7 @@ model User {
   // Promo codes an admin handed to this client personally.
   promoCodes PromoCode[] @relation("PromoCodeClients")
   returns    ReturnRequest[]
+  profileRequests ProfileRequest[]
 }
 
 // A delivery/pickup point that belongs to a client. A client with several
@@ -305,4 +315,18 @@ model StockSyncRun {
   priceDiffs  Int       @default(0)
   // Up to ~30 sample lines for the admin ("назва: 20 → 0").
   details     Json?
+}
+
+// A client's request to change their contacts or delivery points. Clients
+// can't edit that data themselves (it comes from BAS); an admin applies
+// the change and closes the request.
+model ProfileRequest {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message      String
+  status       String   @default("NEW") // NEW | DONE | REJECTED
+  adminComment String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }

@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), {
@@ -13,7 +16,29 @@ const MapPicker = dynamic(() => import("@/components/MapPicker"), {
   ),
 });
 
-type Profile = { id: string; name: string; email: string; company: string | null; phone: string | null };
+type Profile = {
+  id: string;
+  name: string;
+  email: string | null;
+  company: string | null;
+  phone: string | null;
+  taxCode?: string | null;
+  basId?: string | null;
+  isActive?: boolean;
+  passwordIssuedAt?: string | null;
+};
+type ChangeRequest = {
+  id: string;
+  message: string;
+  status: "NEW" | "DONE" | "REJECTED";
+  adminComment: string | null;
+  createdAt: string;
+};
+const REQUEST_STATUS: Record<ChangeRequest["status"], { label: string; cls: string }> = {
+  NEW: { label: "Очікує", cls: "bg-amber-100 text-amber-800" },
+  DONE: { label: "Виконано", cls: "bg-emerald-100 text-emerald-800" },
+  REJECTED: { label: "Відхилено", cls: "bg-slate-100 text-slate-600" },
+};
 type Shop = {
   id: string;
   name: string;
@@ -37,10 +62,36 @@ const emptyShopForm = {
 };
 
 export default function ProfilePage() {
+  return (
+    <Suspense fallback={null}>
+      <ProfileInner />
+    </Suspense>
+  );
+}
+
+// Clients see their contacts and delivery points read-only (the data comes
+// from BAS) and send change requests to the manager. An admin opens
+// /profile?client=<id> from admin/clients to edit a client's contacts and
+// delivery points and to issue a password.
+function ProfileInner() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const clientId = useSearchParams().get("client");
+  const adminMode = isAdmin && !!clientId;
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [taxCode, setTaxCode] = useState("");
+  const [basId, setBasId] = useState("");
+  const [isActive, setIsActive] = useState(true);
+  const [issued, setIssued] = useState<{ login: string; password: string } | null>(null);
+  const [requests, setRequests] = useState<ChangeRequest[]>([]);
+  const [requestText, setRequestText] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+  const [requestMsg, setRequestMsg] = useState("");
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileMsg, setProfileMsg] = useState("");
 
@@ -93,33 +144,75 @@ export default function ProfilePage() {
 
   async function load() {
     setLoading(true);
-    const [profileRes, shopsRes] = await Promise.all([
-      fetch("/api/profile"),
-      fetch("/api/shops"),
+    const [profileRes, shopsRes, reqRes] = await Promise.all([
+      fetch(adminMode ? `/api/admin/clients/${clientId}` : "/api/profile"),
+      fetch(adminMode ? `/api/shops?client=${clientId}` : "/api/shops"),
+      adminMode ? Promise.resolve(null) : fetch("/api/profile/requests"),
     ]);
     const p = await profileRes.json();
     setProfile(p);
     setName(p.name ?? "");
     setCompany(p.company ?? "");
     setPhone(p.phone ?? "");
+    setEmail(p.email ?? "");
+    setTaxCode(p.taxCode ?? "");
+    setBasId(p.basId ?? "");
+    setIsActive(p.isActive ?? true);
     setShops(await shopsRes.json());
+    if (reqRes?.ok) setRequests(await reqRes.json());
     setLoading(false);
   }
 
   useEffect(() => {
+    if (session === undefined) return;
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminMode, clientId, session === undefined]);
 
   async function saveProfile() {
     setSavingProfile(true);
     setProfileMsg("");
-    const res = await fetch("/api/profile", {
+    const res = await fetch(`/api/admin/clients/${clientId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company, phone }),
+      body: JSON.stringify({ name, company, phone, email, taxCode, basId, isActive }),
     });
     setSavingProfile(false);
-    setProfileMsg(res.ok ? "Збережено" : "Помилка збереження");
+    const data = await res.json().catch(() => ({}));
+    setProfileMsg(res.ok ? "Збережено" : data.error ?? "Помилка збереження");
+    if (res.ok) setProfile(data);
+  }
+
+  async function issuePassword() {
+    if (profile?.passwordIssuedAt && !confirm("Видати новий пароль? Старий перестане працювати.")) return;
+    setProfileMsg("");
+    const res = await fetch(`/api/admin/clients/${clientId}/password`, { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setProfileMsg(data.error ?? "Не вдалося видати пароль");
+      return;
+    }
+    setIssued({ login: data.login, password: data.password });
+    setProfile((p) => (p ? { ...p, passwordIssuedAt: new Date().toISOString() } : p));
+  }
+
+  async function sendRequest() {
+    setSendingRequest(true);
+    setRequestMsg("");
+    const res = await fetch("/api/profile/requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: requestText }),
+    });
+    setSendingRequest(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      setRequestMsg(data.error ?? "Не вдалося надіслати");
+      return;
+    }
+    setRequestText("");
+    setRequestMsg("Запит надіслано менеджеру");
+    setRequests((r) => [data, ...r]);
   }
 
   function startAddShop() {
@@ -152,6 +245,7 @@ export default function ProfilePage() {
     setSavingShop(true);
 
     const payload = {
+      userId: clientId,
       name: shopForm.name,
       address: shopForm.address,
       contactPerson: shopForm.contactPerson || undefined,
@@ -195,90 +289,140 @@ export default function ProfilePage() {
     <div className="min-h-screen flex flex-col">
       <Navbar />
       <main className="max-w-3xl mx-auto w-full px-4 py-6 flex-1">
-        <h1 className="text-lg font-semibold text-slate-900 mb-1">Мій профіль</h1>
+        {adminMode && (
+          <Link href="/admin/clients" className="inline-block text-xs text-slate-500 hover:text-slate-900 mb-2">
+            ← Усі клієнти
+          </Link>
+        )}
+        <h1 className="text-lg font-semibold text-slate-900 mb-1">
+          {adminMode ? profile?.company || profile?.name || "Клієнт" : "Мій профіль"}
+        </h1>
         <p className="text-sm text-slate-500 mb-6">
-          Контактні дані та точки доставки (магазини) — потрібні для оформлення
-          замовлень і побудови маршрутів доставки.
+          {adminMode
+            ? "Контакти й адреси доставки клієнта. Клієнт бачить їх у своєму профілі, але змінити не може."
+            : "Ваші дані з облікової системи LUXEL. Щоб щось змінити, надішліть запит менеджеру внизу сторінки."}
         </p>
 
         {!loading && shops.length === 0 && (
           <div className="mb-6 border border-amber-200 bg-amber-50 rounded-xl p-4 text-sm text-amber-900">
-            Профіль ще не заповнено. Додайте хоча б один магазин з адресою та
-            геоміткою нижче, щоб мати змогу оформлювати замовлення.
+            {adminMode
+              ? "У клієнта ще немає адрес доставки: без них він не зможе оформити замовлення. Додайте хоча б одну нижче."
+              : "Адреси доставки ще не додано. Надішліть запит менеджеру внизу сторінки, щоб мати змогу оформлювати замовлення."}
           </div>
         )}
 
-        <section className="border border-slate-200 bg-white rounded-xl p-4 mb-6">
-          <h2 className="text-sm font-semibold text-slate-900 mb-3">Контактні дані</h2>
-          <div className="grid sm:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Ім&apos;я / контактна особа
+        {adminMode ? (
+          <section className="border border-slate-200 bg-white rounded-xl p-4 mb-6">
+            <h2 className="text-sm font-semibold text-slate-900 mb-3">Контактні дані</h2>
+            <div className="grid sm:grid-cols-2 gap-3 mb-3">
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Компанія</span>
+                <input value={company} onChange={(e) => setCompany(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </label>
-              <input
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Компанія
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Контактна особа</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </label>
-              <input
-                value={company}
-                onChange={(e) => setCompany(e.target.value)}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
-            </div>
-          </div>
-          <div className="grid sm:grid-cols-2 gap-3 mb-3">
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Email</label>
-              <input
-                value={profile?.email ?? ""}
-                disabled
-                className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-400"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">
-                Телефон
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Телефон (логін для входу)</span>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+380..." className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+380..."
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
-              />
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Email (логін для входу)</span>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">ЄДРПОУ / ІПН</span>
+                <input value={taxCode} onChange={(e) => setTaxCode(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Код у BAS</span>
+                <input value={basId} onChange={(e) => setBasId(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" />
+              </label>
             </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={saveProfile}
-              disabled={savingProfile}
-              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
-            >
-              {savingProfile ? "Збереження..." : "Зберегти"}
-            </button>
-            {profileMsg && <span className="text-xs text-slate-500">{profileMsg}</span>}
-          </div>
-        </section>
+            <label className="flex items-center gap-2 text-sm text-slate-700 mb-4">
+              <input type="checkbox" checked={!isActive} onChange={(e) => setIsActive(!e.target.checked)} />
+              Заблокувати вхід
+            </label>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile}
+                className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
+              >
+                {savingProfile ? "Збереження..." : "Зберегти"}
+              </button>
+              <button
+                onClick={issuePassword}
+                className="text-sm text-slate-700 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-50"
+              >
+                {profile?.passwordIssuedAt ? "Видати новий пароль" : "Видати пароль"}
+              </button>
+              <span className="text-xs text-slate-500">
+                {profile?.passwordIssuedAt
+                  ? `Пароль видано ${new Date(profile.passwordIssuedAt).toLocaleDateString("uk-UA")}`
+                  : "Пароль ще не видано: клієнт не може увійти"}
+              </span>
+              {profileMsg && <span className="text-xs text-slate-700">{profileMsg}</span>}
+            </div>
+            {issued && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                <p className="font-medium mb-1">Передайте клієнту (пароль показано лише один раз):</p>
+                <p className="font-mono">Сайт: luxel-frankivsk.vercel.app</p>
+                <p className="font-mono">Логін: {issued.login}</p>
+                <p className="font-mono">Пароль: {issued.password}</p>
+                <button
+                  onClick={() =>
+                    navigator.clipboard
+                      ?.writeText(
+                        `Кабінет LUXEL: https://luxel-frankivsk.vercel.app\nЛогін: ${issued.login}\nПароль: ${issued.password}`
+                      )
+                      .then(() => setProfileMsg("Скопійовано"))
+                      .catch(() => {})
+                  }
+                  className="mt-2 text-xs border border-emerald-300 rounded-lg px-3 py-1 hover:bg-emerald-100"
+                >
+                  Скопіювати для клієнта
+                </button>
+              </div>
+            )}
+          </section>
+        ) : (
+          <section className="border border-slate-200 bg-white rounded-xl p-4 mb-6">
+            <h2 className="text-sm font-semibold text-slate-900 mb-3">Контактні дані</h2>
+            <dl className="grid sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              {[
+                ["Компанія", profile?.company],
+                ["Контактна особа", profile?.name],
+                ["Телефон", profile?.phone],
+                ["Email", profile?.email],
+                ["ЄДРПОУ / ІПН", profile?.taxCode],
+              ].map(([label, value]) => (
+                <div key={label as string}>
+                  <dt className="text-xs text-slate-500">{label}</dt>
+                  <dd className="text-slate-900">{value || "—"}</dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        )}
 
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-slate-900">
               Магазини / точки доставки
             </h2>
-            <button
-              onClick={startAddShop}
-              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark"
-            >
-              + Додати магазин
-            </button>
+            {adminMode && (
+              <button
+                onClick={startAddShop}
+                className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark"
+              >
+                + Додати адресу
+              </button>
+            )}
           </div>
 
-          {editingShop && (
+          {adminMode && editingShop && (
             <div className="border border-slate-200 bg-white rounded-xl p-4 mb-4">
               <h3 className="text-sm font-semibold text-slate-900 mb-3">
                 {shopForm.id ? "Редагувати магазин" : "Новий магазин"}
@@ -375,7 +519,7 @@ export default function ProfilePage() {
           {loading ? (
             <p className="text-sm text-slate-500">Завантаження...</p>
           ) : shops.length === 0 && !editingShop ? (
-            <p className="text-sm text-slate-500">Магазинів ще не додано.</p>
+            <p className="text-sm text-slate-500">Адрес доставки ще немає.</p>
           ) : (
             <div className="space-y-2">
               {shops.map((s) => (
@@ -406,6 +550,7 @@ export default function ProfilePage() {
                       )}
                     </div>
                   </div>
+                  {adminMode && (
                   <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => startEditShop(s)}
@@ -420,11 +565,61 @@ export default function ProfilePage() {
                       Видалити
                     </button>
                   </div>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </section>
+
+        {!adminMode && (
+          <section className="border border-slate-200 bg-white rounded-xl p-4 mt-6">
+            <h2 className="text-sm font-semibold text-slate-900 mb-1">Запит на зміну даних</h2>
+            <p className="text-xs text-slate-500 mb-3">
+              Змінився телефон, з&apos;явився новий магазин чи інша адреса? Опишіть, і менеджер внесе зміни.
+            </p>
+            <textarea
+              value={requestText}
+              onChange={(e) => setRequestText(e.target.value)}
+              rows={3}
+              placeholder="Наприклад: новий телефон 050 123 45 67; додати магазин у м. Калуш, вул. Шевченка, 10"
+              className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm"
+            />
+            <div className="mt-2 flex items-center gap-3">
+              <button
+                onClick={sendRequest}
+                disabled={sendingRequest || requestText.trim().length < 5}
+                className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
+              >
+                {sendingRequest ? "Надсилаю..." : "Надіслати запит"}
+              </button>
+              {requestMsg && <span className="text-xs text-slate-600">{requestMsg}</span>}
+            </div>
+            {requests.length > 0 && (
+              <ul className="mt-4 space-y-2">
+                {requests.map((r) => (
+                  <li key={r.id} className="rounded-lg border border-slate-200 p-3 text-sm">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs text-slate-500">
+                        {new Date(r.createdAt).toLocaleDateString("uk-UA")}
+                      </span>
+                      <span className={`text-xs rounded-full px-2 py-0.5 ${REQUEST_STATUS[r.status].cls}`}>
+                        {REQUEST_STATUS[r.status].label}
+                      </span>
+                    </div>
+                    <p className="text-slate-800 whitespace-pre-line">{r.message}</p>
+                    {r.adminComment && (
+                      <p className="mt-1 text-slate-600">
+                        <span className="text-slate-400">Менеджер: </span>
+                        {r.adminComment}
+                      </p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
       </main>
     </div>
   );

@@ -1,27 +1,32 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sessionUser } from "@/lib/adminGuard";
 
-async function assertOwnership(shopId: string, userId: string) {
+// Only an admin edits or removes delivery points (clients send a change
+// request instead).
+async function adminShop(shopId: string) {
+  const me = await sessionUser();
+  if (!me) return { error: NextResponse.json({ error: "unauthorized" }, { status: 401 }) };
+  if (!me.isAdmin) {
+    return {
+      error: NextResponse.json(
+        { error: "Змінити адресу може лише менеджер. Надішліть запит на зміну." },
+        { status: 403 }
+      ),
+    };
+  }
   const shop = await prisma.shop.findUnique({ where: { id: shopId } });
-  return shop && shop.userId === userId ? shop : null;
+  if (!shop) return { error: NextResponse.json({ error: "not found" }, { status: 404 }) };
+  return { shop };
 }
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
   const { id } = await params;
-  const existing = await assertOwnership(id, userId);
-  if (!existing) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+  const guard = await adminShop(id);
+  if (guard.error) return guard.error;
 
   const body = await req.json();
   const { name, address, contactPerson, phone, lat, lng, workingHours } = body as {
@@ -51,17 +56,9 @@ export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth();
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
-    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
-  }
-
   const { id } = await params;
-  const existing = await assertOwnership(id, userId);
-  if (!existing) {
-    return NextResponse.json({ error: "not found" }, { status: 404 });
-  }
+  const guard = await adminShop(id);
+  if (guard.error) return guard.error;
 
   await prisma.shop.delete({ where: { id } });
   return NextResponse.json({ ok: true });

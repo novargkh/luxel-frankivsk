@@ -1,42 +1,42 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { sessionUser } from "@/lib/adminGuard";
+import { cleanClientFields, clientConflicts } from "@/lib/clientFields";
 
-// Admin-only edit of a client's BAS (1C) contractor GUID — the preferred
-// matching key for the CommerceML exchange (see src/lib/onecExchange.ts).
-// Deliberately narrow: this endpoint only ever sets an ID an admin looked
-// up in BAS themselves; the portal never creates BAS contractors.
-export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
-  const session = await auth();
-  const role = (session?.user as { role?: string } | undefined)?.role;
-  if (role !== "ADMIN") {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+const select = {
+  id: true,
+  name: true,
+  email: true,
+  company: true,
+  phone: true,
+  basId: true,
+  taxCode: true,
+  isActive: true,
+  passwordIssuedAt: true,
+} as const;
 
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const me = await sessionUser();
+  if (!me?.isAdmin) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const { id } = await params;
-  const body = await req.json();
-  const { basId } = body as { basId?: string };
+  const user = await prisma.user.findFirst({ where: { id, role: "CLIENT" }, select });
+  if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
+  return NextResponse.json(user);
+}
 
-  if (basId === undefined) {
-    return NextResponse.json({ error: "Немає даних для оновлення" }, { status: 400 });
+// Admin edits a client's contacts, BAS code, ЄДРПОУ, or blocks the account.
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const me = await sessionUser();
+  if (!me?.isAdmin) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const { id } = await params;
+
+  const data = cleanClientFields(await req.json());
+  if (data.name !== undefined && !data.name) {
+    return NextResponse.json({ error: "Ім'я не може бути порожнім" }, { status: 400 });
   }
+  const conflict = await clientConflicts(data, id);
+  if (conflict) return NextResponse.json({ error: conflict }, { status: 400 });
 
-  const trimmed = basId.trim();
-  if (trimmed) {
-    const existing = await prisma.user.findUnique({ where: { basId: trimmed } });
-    if (existing && existing.id !== id) {
-      return NextResponse.json(
-        { error: "Цей BAS ID вже прив'язаний до іншого клієнта" },
-        { status: 400 }
-      );
-    }
-  }
-
-  const client = await prisma.user.update({
-    where: { id },
-    data: { basId: trimmed || null },
-    select: { id: true, name: true, email: true, company: true, phone: true, basId: true },
-  });
-
-  return NextResponse.json(client);
+  const user = await prisma.user.update({ where: { id }, data, select });
+  return NextResponse.json(user);
 }

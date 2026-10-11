@@ -585,14 +585,14 @@ export default function CatalogPage() {
           <Bezel className="reveal mb-4">
             <div className="p-5 sm:p-6 flex items-center justify-between gap-4 flex-wrap">
               <p className="text-[15px] leading-relaxed text-ink/80 max-w-[60ch]">
-                Щоб оформлювати замовлення, заповніть профіль і додайте хоча б один
-                магазин (адресу доставки). Товари можна додавати в кошик вже зараз.
+                Щоб оформлювати замовлення, потрібна адреса доставки: попросіть
+                менеджера додати її. Товари можна додавати в кошик вже зараз.
               </p>
               <Link
                 href="/profile"
                 className="group h-12 inline-flex items-center gap-3 rounded-full bg-ink text-white pl-5 pr-1.5 text-sm font-medium whitespace-nowrap active:scale-[0.98] transition-transform duration-300 ease-fluid"
               >
-                Заповнити профіль
+                Надіслати запит
                 <span className="w-9 h-9 rounded-full bg-white/15 inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
                   <ArrowRight size={16} weight="bold" />
                 </span>
