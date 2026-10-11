@@ -147,6 +147,7 @@ model Product {
 
   images     ProductImage[]
   orderItems OrderItem[]
+  promoCodes PromoCode[] @relation("PromoCodeProducts")
 }
 
 model ProductImage {
@@ -215,6 +216,18 @@ model PromoCode {
   // Whether clients see this code in their cabinet at all. Off = the code
   // works only for whoever was told it (e.g. a giveaway winner).
   showToClients Boolean    @default(false)
+  // Admin-facing name ("Premium -20%"); the code is what clients type.
+  name        String?
+  // Minimum order total (before discount) for the code to apply.
+  minTotal    Float?
+  // Valid from this date (inclusive); expiresAt = valid through that day.
+  startsAt    DateTime?
+  // How many orders one client may use the code in (null = no limit).
+  perClientLimit Int?
+  // Discount applies only to these products and/or categories (category
+  // names as in the catalog). Both empty = the whole order.
+  products    Product[]    @relation("PromoCodeProducts")
+  categories  String[]     @default([])
   createdAt   DateTime     @default(now())
 
   orders Order[]

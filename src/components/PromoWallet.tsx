@@ -9,11 +9,16 @@ export type AvailablePromo = {
   description: string | null;
   type: "PERCENT" | "FIXED";
   value: number;
+  startsAt?: string | null;
   expiresAt: string | null;
   usageLimit: number | null;
+  perClientLimit?: number | null;
   used: number;
+  usedByMe?: number;
+  minTotal?: number | null;
+  scope?: { products: string[]; productCount: number; categories: string[] };
   createdAt: string;
-  status: "ACTIVE" | "INACTIVE" | "EXPIRED" | "EXHAUSTED";
+  status: "ACTIVE" | "INACTIVE" | "EXPIRED" | "EXHAUSTED" | "SCHEDULED";
   usable: boolean;
 };
 
@@ -27,6 +32,7 @@ const STATUS: Record<AvailablePromo["status"], { label: string; cls: string }> =
   INACTIVE: { label: "Неактивний", cls: "bg-black/[0.06] text-muted" },
   EXPIRED: { label: "Термін минув", cls: "bg-black/[0.06] text-muted" },
   EXHAUSTED: { label: "Ліміт вичерпано", cls: "bg-black/[0.06] text-muted" },
+  SCHEDULED: { label: "Скоро", cls: "bg-blue-100/80 text-blue-800" },
 };
 
 function readSeen(key: string): Set<string> {
@@ -156,10 +162,23 @@ export function PromoCard({
       {promo.description && (
         <p className="mt-1.5 text-[14px] leading-relaxed text-ink/75">{promo.description}</p>
       )}
+      {promo.scope && (promo.scope.productCount > 0 || promo.scope.categories.length > 0) && (
+        <p className="mt-1.5 text-xs text-ink/70">
+          Діє на:{" "}
+          {[
+            ...promo.scope.categories,
+            ...promo.scope.products.slice(0, 3),
+            ...(promo.scope.productCount > 3 ? [`ще ${promo.scope.productCount - 3} товарів`] : []),
+          ].join(", ")}
+        </p>
+      )}
       <p className="mt-1.5 text-xs text-muted tabular">
-        Використано {promo.used}
-        {promo.usageLimit != null ? ` з ${promo.usageLimit}` : ", без обмежень"}
-        {promo.expiresAt ? `. Діє до ${new Date(promo.expiresAt).toLocaleDateString("uk-UA")}` : ""}
+        {promo.minTotal ? `Від суми ${promo.minTotal.toLocaleString("uk-UA")} ₴. ` : ""}
+        {promo.startsAt ? `З ${new Date(promo.startsAt).toLocaleDateString("uk-UA")} ` : ""}
+        {promo.expiresAt ? `${promo.startsAt ? "до" : "Діє до"} ${new Date(promo.expiresAt).toLocaleDateString("uk-UA")}. ` : promo.startsAt ? ". " : ""}
+        {promo.perClientLimit != null
+          ? `Можна використати ${promo.perClientLimit} раз(и), використано ${promo.usedByMe ?? 0}.`
+          : `Використано ${promo.used}${promo.usageLimit != null ? ` з ${promo.usageLimit}` : ", без обмежень"}.`}
       </p>
       <button
         type="button"

@@ -28,7 +28,14 @@ function packagingText(packQty: number | null, boxQty: number | null): string | 
   return `Уп/ящ: ${packQty ?? "—"}/${boxQty ?? "—"}`;
 }
 type Shop = { id: string; name: string; address: string };
-type AppliedPromo = { code: string; type: "PERCENT" | "FIXED"; value: number };
+type AppliedPromo = {
+  code: string;
+  type: "PERCENT" | "FIXED";
+  value: number;
+  // null = the whole order; otherwise only these products / categories.
+  scope: { productIds: string[]; categories: string[] } | null;
+  minTotal: number | null;
+};
 
 export default function CartPage() {
   const { cart, setQty, remove, clear } = useCart();
@@ -81,11 +88,21 @@ export default function CartPage() {
   );
 
   const subtotal = items.reduce((sum, i) => sum + i.product.price * i.quantity, 0);
-  const discountAmount = appliedPromo
-    ? appliedPromo.type === "PERCENT"
-      ? Math.round(subtotal * (appliedPromo.value / 100) * 100) / 100
-      : Math.min(appliedPromo.value, subtotal)
-    : 0;
+  // Mirrors src/lib/promo.ts; the server checks it again when the order is
+  // placed.
+  const scope = appliedPromo?.scope ?? null;
+  const inScope = (p: Product) =>
+    !scope || scope.productIds.includes(p.id) || scope.categories.includes(p.category ?? "Інше");
+  const eligibleSubtotal = items
+    .filter((i) => inScope(i.product))
+    .reduce((sum, i) => sum + i.product.price * i.quantity, 0);
+  const belowMin = !!appliedPromo?.minTotal && subtotal < appliedPromo.minTotal;
+  const discountAmount =
+    appliedPromo && !belowMin && eligibleSubtotal > 0
+      ? appliedPromo.type === "PERCENT"
+        ? Math.round(eligibleSubtotal * (appliedPromo.value / 100) * 100) / 100
+        : Math.min(appliedPromo.value, eligibleSubtotal)
+      : 0;
   const total = Math.max(0, subtotal - discountAmount);
   const profileIncomplete = !loading && shops.length === 0;
 
@@ -98,7 +115,10 @@ export default function CartPage() {
     const res = await fetch("/api/promo/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code, subtotal }),
+      body: JSON.stringify({
+        code,
+        items: items.map((i) => ({ productId: i.product.id, quantity: i.quantity })),
+      }),
     });
     const data = await res.json();
     setPromoChecking(false);
@@ -107,7 +127,13 @@ export default function CartPage() {
       setAppliedPromo(null);
       return;
     }
-    setAppliedPromo({ code: data.code, type: data.type, value: data.value });
+    setAppliedPromo({
+      code: data.code,
+      type: data.type,
+      value: data.value,
+      scope: data.scope ?? null,
+      minTotal: data.minTotal ?? null,
+    });
   }
 
   function removePromo() {
@@ -411,6 +437,19 @@ export default function CartPage() {
                     </div>
                   )}
                   {promoError && <p className="text-xs text-red-600 mt-1">{promoError}</p>}
+                  {appliedPromo && belowMin && (
+                    <p className="text-xs text-amber-700 mt-1">
+                      Знижка діє від суми {appliedPromo.minTotal!.toLocaleString("uk-UA")} ₴. Додайте товарів ще на{" "}
+                      {(appliedPromo.minTotal! - subtotal).toLocaleString("uk-UA")} ₴.
+                    </p>
+                  )}
+                  {appliedPromo && !belowMin && scope && (
+                    <p className="text-xs text-slate-500 mt-1">
+                      {eligibleSubtotal > 0
+                        ? `Знижка лише на акційні товари: ${items.filter((i) => inScope(i.product)).length} поз.`
+                        : "У кошику немає товарів, на які діє промокод"}
+                    </p>
+                  )}
                 </div>
 
                 {shops.length > 0 && (

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { availabilityOf } from "@/lib/availability";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validatePromoCode, computeDiscount } from "@/lib/promo";
+import { evaluatePromo } from "@/lib/promo";
 import { orderNumbers } from "@/lib/docNumber";
 
 export async function GET() {
@@ -102,11 +102,6 @@ export async function POST(req: Request) {
     }
   }
 
-  const subtotal = items.reduce(
-    (sum, i) => sum + productMap.get(i.productId)!.price * i.quantity,
-    0
-  );
-
   let order;
   try {
     order = await prisma.$transaction(async (tx) => {
@@ -116,22 +111,26 @@ export async function POST(req: Request) {
       if (promoCode) {
         const promo = await tx.promoCode.findUnique({
           where: { code: promoCode.trim().toUpperCase() },
-          include: { clients: { select: { id: true } } },
+          include: { clients: { select: { id: true } }, products: { select: { id: true } } },
         });
         // A code handed to specific clients works only for them.
-        if (promo && promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId)) {
+        if (!promo || (promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId))) {
           throw new Error("Промокод не знайдено");
         }
-        if (!promo) {
-          throw new Error("Промокод не знайдено");
-        }
-        const usedCount = await tx.order.count({ where: { promoCodeId: promo.id } });
-        const check = validatePromoCode(promo, usedCount);
-        if (!check.ok) {
-          throw new Error(check.error);
+        const [usedCount, usedByClient] = await Promise.all([
+          tx.order.count({ where: { promoCodeId: promo.id, status: { not: "CANCELLED" } } }),
+          tx.order.count({ where: { promoCodeId: promo.id, userId, status: { not: "CANCELLED" } } }),
+        ]);
+        const lines = items.map((i) => {
+          const p = productMap.get(i.productId)!;
+          return { productId: p.id, category: p.category, price: p.price, quantity: i.quantity };
+        });
+        const result = evaluatePromo(promo, lines, usedCount, usedByClient);
+        if (!result.ok) {
+          throw new Error(result.error);
         }
         promoCodeId = promo.id;
-        discountAmount = computeDiscount(promo, subtotal);
+        discountAmount = result.discount;
       }
 
       const created = await tx.order.create({
