@@ -43,6 +43,14 @@ body {
   body {
     padding-bottom: calc(max(env(safe-area-inset-bottom), 12px) + 80px);
   }
+  /* iOS Safari zooms the whole page into any field smaller than 16px and
+     leaves it zoomed (the "page doesn't fit" effect). 16px prevents that
+     without disabling pinch-zoom. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 body {
@@ -58,10 +66,18 @@ body {
   background: rgba(225, 37, 27, 0.16);
 }
 
-/* One consistent, visible keyboard focus ring instead of browser defaults. */
-:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+/* One calm, neutral keyboard focus ring instead of browser defaults (in the
+   base layer so components can override it). Text fields draw their own
+   soft ring instead of an outline. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid rgb(16 17 20 / 0.35);
+    outline-offset: 2px;
+  }
+  input:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+  }
 }
 
 /* Numbers (prices, counts) line up in columns. */

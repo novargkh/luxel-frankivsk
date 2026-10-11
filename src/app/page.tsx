@@ -255,6 +255,44 @@ export default function CatalogPage() {
     };
   }, []);
 
+  // On phones the search panel folds into a small glass "lens" button once
+  // it is stuck under the navbar, so more of the catalog is visible while
+  // scrolling. A sentinel right above the panel tells us when it is stuck
+  // (IntersectionObserver, no scroll-position polling).
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [stuck, setStuck] = useState(false);
+  const [lensOpen, setLensOpen] = useState(false);
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        const isStuck =
+          !entry.isIntersecting && entry.boundingClientRect.top < (entry.rootBounds?.top ?? 0) + 1;
+        setStuck(isStuck);
+        if (!isStuck) setLensOpen(false);
+      },
+      { rootMargin: `-${navHeight + 8}px 0px 0px 0px`, threshold: 0 }
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [navHeight]);
+  // After the lens was tapped open, the next scroll folds it back (unless
+  // the person is typing). The listener only exists while it is open.
+  useEffect(() => {
+    if (!lensOpen) return;
+    const onScroll = () => {
+      if (document.activeElement === searchInputRef.current) return;
+      setLensOpen(false);
+    };
+    const t = setTimeout(() => window.addEventListener("scroll", onScroll, { passive: true }), 400);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("scroll", onScroll);
+    };
+  }, [lensOpen]);
+
   async function loadData() {
     setLoading(true);
     const [productsRes, announcementsRes, shopsRes] = await Promise.all([
@@ -514,6 +552,13 @@ export default function CatalogPage() {
   const profileIncomplete = !loading && shops.length === 0;
 
   const heroCount = products.length;
+  // Phone-only: search panel folded into the lens button.
+  const lensMode = stuck && !lensOpen && !search && !mobileFiltersOpen;
+
+  function openLens() {
+    setLensOpen(true);
+    requestAnimationFrame(() => searchInputRef.current?.focus());
+  }
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
@@ -593,11 +638,40 @@ export default function CatalogPage() {
         {/* Search + filters, sticky under the floating navbar so they stay
             reachable while scrolling through a long, expanded catalog. On
             mobile the extra filters collapse into a toggled panel. */}
+        <div ref={sentinelRef} aria-hidden="true" className="h-px -mb-px" />
         <div
-          className="sticky z-10 -mx-1.5 sm:-mx-2 py-2 mb-6"
+          className="sticky z-10 -mx-1.5 sm:-mx-2 py-2 mb-6 pointer-events-none"
           style={{ top: navHeight }}
         >
-          <div onPointerMove={trackLight} className="glass glass-strong rounded-[1.75rem] p-1.5">
+          {/* Folded state (phones): a round glass lens. Tap to search. */}
+          <button
+            type="button"
+            onClick={openLens}
+            aria-label="Пошук і фільтри"
+            tabIndex={lensMode ? 0 : -1}
+            aria-hidden={!lensMode}
+            className={`sm:hidden glass absolute right-1.5 top-2 w-14 h-14 rounded-full inline-flex items-center justify-center text-ink transition-all duration-500 ease-fluid active:scale-90 ${
+              lensMode
+                ? "opacity-100 scale-100 pointer-events-auto"
+                : "opacity-0 scale-50 pointer-events-none"
+            }`}
+          >
+            <MagnifyingGlass size={22} weight="regular" />
+            {activeExtraFilterCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[1.25rem] h-5 px-1 rounded-full bg-brand text-white text-[11px] leading-5 text-center font-semibold">
+                {activeExtraFilterCount}
+              </span>
+            )}
+          </button>
+
+          <div
+            onPointerMove={trackLight}
+            className={`glass glass-strong rounded-[1.75rem] p-1.5 origin-top-right transition-all duration-500 ease-fluid ${
+              lensMode
+                ? "max-sm:opacity-0 max-sm:scale-[0.2] max-sm:pointer-events-none sm:pointer-events-auto"
+                : "pointer-events-auto"
+            }`}
+          >
           <div className="flex gap-1.5 items-center">
             <div className="flex-1 min-w-0">
               <div className="relative">
@@ -607,13 +681,14 @@ export default function CatalogPage() {
                   className="absolute left-4 top-1/2 -translate-y-1/2 text-muted pointer-events-none"
                 />
                 <input
+                  ref={searchInputRef}
                   type="text"
                   inputMode="search"
                   placeholder="Назва або артикул"
                   aria-label="Пошук товару"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full h-12 rounded-[1.375rem] bg-white/80 ring-1 ring-white pl-11 pr-12 text-[15px] text-ink placeholder:text-muted shadow-[0_1px_2px_rgba(16,17,20,0.05)] focus:outline-none focus-visible:outline-none focus:ring-2 focus:ring-ink/70 transition-shadow duration-300 ease-fluid"
+                  className="w-full h-12 rounded-[1.375rem] bg-white/80 ring-1 ring-white pl-11 pr-12 text-base text-ink placeholder:text-muted shadow-[0_1px_2px_rgba(16,17,20,0.05)] focus:outline-none focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,0.6),0_8px_24px_-10px_rgba(16,17,20,0.25)] transition-shadow duration-300 ease-fluid"
                 />
                 {search && (
                   <button
@@ -1091,7 +1166,7 @@ function Stepper({
   const btn = `${large ? "w-12 h-12" : "w-10 h-10"} shrink-0 inline-flex items-center justify-center rounded-full text-ink transition-all duration-300 ease-fluid disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-ink/[0.06] enabled:active:scale-90`;
   return (
     <div
-      className={`inline-flex items-center ${large ? "h-12" : "h-10"} rounded-full transition-all duration-300 ease-fluid focus-within:ring-2 focus-within:ring-ink/70 ${
+      className={`inline-flex items-center ${large ? "h-12" : "h-10"} rounded-full transition-all duration-300 ease-fluid focus-within:ring-2 focus-within:ring-black/10 ${
         qty > 0 ? "bg-white ring-1 ring-ink" : "bg-ink/[0.04]"
       } ${disabled ? "opacity-60" : ""}`}
     >
@@ -1109,7 +1184,7 @@ function Stepper({
         max={stock}
         disabled={disabled}
         onChange={onQty}
-        className="w-10 h-8 bg-transparent text-center text-[15px] font-semibold tabular text-ink focus:outline-none focus-visible:outline-none disabled:text-muted"
+        className="w-10 h-8 bg-transparent text-center text-base font-semibold tabular text-ink focus:outline-none disabled:text-muted"
       />
       <button
         type="button"

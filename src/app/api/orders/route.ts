@@ -15,7 +15,8 @@ export async function GET() {
   const orders = await prisma.order.findMany({
     where: role === "ADMIN" ? {} : { userId },
     include: {
-      items: { include: { product: true } },
+      // First image is used as a thumbnail in the orders table.
+      items: { include: { product: { include: { images: { take: 1 } } } } },
       user: { select: { name: true, email: true, company: true } },
       shop: { select: { id: true, name: true, address: true } },
       promoCode: { select: { code: true } },
