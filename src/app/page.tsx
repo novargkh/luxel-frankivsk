@@ -7,6 +7,7 @@ import {
   CaretDown,
   ImageSquare,
   MagnifyingGlass,
+  Microphone,
   Minus,
   Plus,
   SlidersHorizontal,
@@ -583,7 +584,7 @@ export default function CatalogPage() {
           </Bezel>
         )}
 
-        <header className="reveal mb-10 sm:mb-12">
+        <header className="reveal mb-10 sm:mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
           <div>
             <span className="inline-flex items-center rounded-full bg-white/60 ring-1 ring-white/80 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted mb-5">
               Оптовий кабінет
@@ -598,6 +599,15 @@ export default function CatalogPage() {
               </p>
             )}
           </div>
+          <Link
+            href="/quick-order"
+            className="group self-start md:self-auto h-12 inline-flex items-center gap-3 rounded-full glass-card sheen pl-1.5 pr-5 text-sm font-medium text-ink whitespace-nowrap active:scale-[0.98] transition-transform duration-300 ease-fluid"
+          >
+            <span className="w-9 h-9 rounded-full bg-brand text-white inline-flex items-center justify-center">
+              <Microphone size={16} weight="bold" />
+            </span>
+            Швидке замовлення: фото або голос
+          </Link>
         </header>
 
         {/* Search + filters, sticky under the floating navbar so they stay

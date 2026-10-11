@@ -183,9 +183,14 @@ export default function CartPage() {
       <main className="max-w-4xl mx-auto w-full px-4 py-6 flex-1">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-semibold text-slate-900">Кошик — накладна</h1>
-          <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
-            ← Продовжити покупки
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link href="/quick-order" className="text-sm font-medium text-brand hover:text-brand-dark">
+              Швидке замовлення
+            </Link>
+            <Link href="/" className="text-sm text-slate-500 hover:text-slate-900">
+              ← Продовжити покупки
+            </Link>
+          </div>
         </div>
 
         {profileIncomplete && (
