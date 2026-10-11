@@ -30,12 +30,15 @@ type OrderItem = {
     price?: number;
     stock?: number;
     isActive?: boolean;
+    article?: string | null;
     images?: { id: string; url: string }[];
   };
 };
 
 type Order = {
   id: string;
+  // Date-based number from the API, e.g. "11.10.25-2" (see lib/orderNumber).
+  displayNumber?: string;
   status: "NEW" | "CONFIRMED" | "SHIPPED" | "CANCELLED";
   comment: string | null;
   createdAt: string;
@@ -70,7 +73,16 @@ const STATUS_FILTERS: { value: "ALL" | Order["status"]; label: string }[] = [
 ];
 
 const money = (n: number) => `${n.toLocaleString("uk-UA")} ₴`;
-const shortId = (id: string) => id.slice(-6).toUpperCase();
+const orderNo = (o: Order) => o.displayNumber ?? o.id.slice(-6).toUpperCase();
+
+// Search ignores case, spaces and punctuation, so "cscl07 80w",
+// "CSCL07-80W" and "cscl0780" all find the same article.
+const norm = (s: string) => s.toLowerCase().replace(/[\s\-_./()«»"',]+/g, "");
+
+function itemMatches(item: OrderItem, q: string) {
+  const article = item.product.article ?? extractAttributes(item.product.name).article ?? "";
+  return norm(item.product.name).includes(q) || norm(article).includes(q);
+}
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("uk-UA", {
     day: "2-digit",
@@ -209,26 +221,29 @@ export default function OrdersPage() {
     });
   }
 
+  // Order items that match the search (article or product name), so the
+  // invoices containing a position can be shown with that row highlighted.
+  const q = norm(query.trim());
+  const matchedItems = useMemo(() => {
+    const ids = new Set<string>();
+    if (!q) return ids;
+    for (const o of orders) for (const i of o.items) if (itemMatches(i, q)) ids.add(i.id);
+    return ids;
+  }, [orders, q]);
+
   const visibleOrders = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return orders.filter((o) => {
       if (isAdmin && onlyNotExported && o.exportedAt) return false;
       if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
       if (q) {
-        const hay = [
-          o.id.slice(-6),
-          o.shop?.name ?? "",
-          o.user?.name ?? "",
-          o.user?.company ?? "",
-          ...o.items.map((i) => i.product.name),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
+        const hay = norm(
+          [orderNo(o), o.shop?.name ?? "", o.user?.name ?? "", o.user?.company ?? ""].join(" ")
+        );
+        if (!hay.includes(q) && !o.items.some((i) => matchedItems.has(i.id))) return false;
       }
       return true;
     });
-  }, [orders, isAdmin, onlyNotExported, statusFilter, query]);
+  }, [orders, isAdmin, onlyNotExported, statusFilter, q, matchedItems]);
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -272,7 +287,7 @@ export default function OrdersPage() {
       for (const item of order.items) {
         const article = extractAttributes(item.product.name).article ?? "";
         rows.push([
-          order.id.slice(-6),
+          orderNo(order),
           new Date(order.createdAt).toLocaleString("uk-UA"),
           order.user?.name ?? "",
           order.user?.company ?? "",
@@ -390,7 +405,7 @@ export default function OrdersPage() {
                 inputMode="search"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Товар, артикул або №"
+                placeholder="Артикул, товар або № замовлення"
                 aria-label="Пошук у замовленнях"
                 className="w-full h-12 rounded-full bg-white/80 ring-1 ring-white shadow-[0_1px_2px_rgba(16,17,20,0.05)] pl-11 pr-11 text-base text-ink placeholder:text-muted focus:outline-none focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,0.6),0_8px_24px_-10px_rgba(16,17,20,0.25)]"
               />
@@ -405,6 +420,13 @@ export default function OrdersPage() {
                 </button>
               )}
             </div>
+            {q && (
+              <p className="px-1 text-sm text-muted tabular" aria-live="polite">
+                {visibleOrders.length > 0
+                  ? `Знайдено в ${visibleOrders.length} ${plural(visibleOrders.length, "накладній", "накладних", "накладних")}`
+                  : "Ця позиція не зустрічається у ваших накладних"}
+              </p>
+            )}
             <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-4 px-4 sm:mx-0 sm:px-0">
               {STATUS_FILTERS.map((f) => (
                 <button
@@ -477,7 +499,7 @@ export default function OrdersPage() {
                           type="checkbox"
                           checked={selected.has(order.id)}
                           onChange={() => toggleSelected(order.id)}
-                          aria-label={`Обрати замовлення ${shortId(order.id)}`}
+                          aria-label={`Обрати замовлення ${orderNo(order)}`}
                           className="mt-1.5 w-4 h-4 accent-[var(--ink)]"
                         />
                       )}
@@ -489,7 +511,7 @@ export default function OrdersPage() {
                       >
                         <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                           <span className="text-lg sm:text-xl font-semibold tracking-[-0.02em] text-ink tabular">
-                            № {shortId(order.id)}
+                            № {orderNo(order)}
                           </span>
                           {!isAdmin && (
                             <span
@@ -601,7 +623,13 @@ export default function OrdersPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {order.items.map((item, ii) => {
+                              {(q
+                                ? [...order.items].sort(
+                                    (a, b) => Number(matchedItems.has(b.id)) - Number(matchedItems.has(a.id))
+                                  )
+                                : order.items
+                              ).map((item, ii) => {
+                                const hit = matchedItems.has(item.id);
                                 const ok = canReorder(item);
                                 const added = justAdded.has(item.id);
                                 const img = item.product.images?.[0]?.url;
@@ -609,9 +637,9 @@ export default function OrdersPage() {
                                 return (
                                   <tr
                                     key={item.id}
-                                    className={`border-t border-black/[0.04] align-middle hover:bg-white/60 transition-colors duration-300 ease-fluid ${
-                                      isOpen && ii < 14 ? "rise" : ""
-                                    }`}
+                                    className={`border-t border-black/[0.04] align-middle transition-colors duration-300 ease-fluid ${
+                                      hit ? "bg-brand/[0.06] shadow-[inset_3px_0_0_var(--brand)]" : "hover:bg-white/60"
+                                    } ${isOpen && ii < 14 ? "rise" : ""}`}
                                     style={isOpen ? { ["--i" as string]: ii } : undefined}
                                   >
                                     <td className="py-3 pl-4 sm:pl-6 pr-2">

@@ -5,15 +5,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
-import { CaretDown, ShoppingBag, SignOut } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, ShoppingBag, SignOut, UserCircle } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
+import PromoCodes from "@/components/PromoCodes";
+import { usePromoFeed } from "@/lib/promoFeed";
 
 const CLIENT_LINKS = [
   { href: "/", label: "Каталог" },
   { href: "/promotions", label: "Акції" },
   { href: "/orders", label: "Мої замовлення" },
+  { href: "/returns", label: "Повернення" },
   { href: "/profile", label: "Профіль" },
 ];
 
@@ -24,6 +27,7 @@ const ADMIN_LINKS = [
   { href: "/admin/routes", label: "Маршрути" },
   { href: "/admin/coverage", label: "Покриття" },
   { href: "/admin/promocodes", label: "Промокоди" },
+  { href: "/admin/returns", label: "Повернення" },
   { href: "/admin/announcements", label: "Сповіщення" },
 ];
 
@@ -48,10 +52,26 @@ export default function Navbar() {
   const mobileOpen = mobileFor === pathname;
   const adminOpen = adminFor === pathname;
 
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const isAdmin = role === "ADMIN";
+  const userKey = session?.user?.email ?? session?.user?.name ?? "user";
+  const promos = usePromoFeed(userKey, !!session?.user && !isAdmin);
+  // Which codes were new when the menu was opened: they keep their "Нове"
+  // tag while the menu is open even though opening marks them seen.
+  const [newInMenu, setNewInMenu] = useState<Set<string>>(new Set());
+  const hasNewPromos = promos.newIds.size > 0;
+
   if (!session?.user) return null;
 
-  const role = (session.user as { role?: string }).role;
-  const isAdmin = role === "ADMIN";
+  function toggleMobile() {
+    if (mobileOpen) {
+      setMobileFor(null);
+      return;
+    }
+    setNewInMenu(promos.newIds);
+    promos.markSeen();
+    setMobileFor(pathname);
+  }
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
@@ -67,9 +87,11 @@ export default function Navbar() {
             <p className="reveal text-[32px] leading-tight font-semibold tracking-[-0.03em] text-ink">
               {session.user.name}
             </p>
-            <p className="reveal mt-1 text-sm text-muted" style={{ ["--i" as string]: 1 }}>
-              {isAdmin ? "Адміністратор" : "Клієнт"}
-            </p>
+            {isAdmin && (
+              <p className="reveal mt-1 text-sm text-muted" style={{ ["--i" as string]: 1 }}>
+                Адміністратор
+              </p>
+            )}
 
             {isAdmin && (
               <div className="reveal mt-8 pt-6 border-t border-black/[0.06]" style={{ ["--i" as string]: 2 }}>
@@ -92,8 +114,18 @@ export default function Navbar() {
               </div>
             )}
 
+            <Link
+              href="/profile"
+              className="reveal mt-8 flex items-center gap-3 rounded-[1.25rem] bg-white/70 ring-1 ring-white px-4 h-14 text-[17px] text-ink active:scale-[0.99] transition-transform duration-300 ease-fluid"
+              style={{ ["--i" as string]: 3 }}
+            >
+              <UserCircle size={24} weight="light" className="text-ink/70" />
+              <span className="flex-1">Мій профіль</span>
+              <CaretRight size={16} weight="bold" className="text-muted" />
+            </Link>
+
             <div
-              className="reveal mt-10"
+              className="reveal mt-6"
               style={{ ["--i" as string]: 3 }}
             >
               <button
@@ -104,6 +136,19 @@ export default function Navbar() {
                 Вийти
               </button>
             </div>
+
+            {!isAdmin && (
+              <section
+                className="reveal mt-10 pt-6 border-t border-black/[0.06]"
+                style={{ ["--i" as string]: 4 }}
+                aria-labelledby="menu-promos"
+              >
+                <h2 id="menu-promos" className="text-sm font-medium text-muted mb-3">
+                  Доступні промокоди
+                </h2>
+                <PromoCodes items={promos.items} newIds={newInMenu} loaded={promos.loaded} />
+              </section>
+            )}
           </nav>
         </div>
       )}
@@ -140,6 +185,12 @@ export default function Navbar() {
               }`}
             >
               {l.label}
+              {l.href === "/profile" && hasNewPromos && (
+                <span
+                  aria-label="є нові промокоди"
+                  className="pop ml-1.5 w-2 h-2 rounded-full bg-brand"
+                />
+              )}
             </Link>
           ))}
 
@@ -224,11 +275,27 @@ export default function Navbar() {
           {/* Hamburger that morphs into an X */}
           <button
             type="button"
-            onClick={() => setMobileFor(mobileOpen ? null : pathname)}
+            onClick={toggleMobile}
             aria-expanded={mobileOpen}
-            aria-label={mobileOpen ? "Закрити меню" : "Відкрити меню"}
+            aria-label={
+              mobileOpen
+                ? "Закрити меню"
+                : hasNewPromos
+                  ? "Відкрити меню, є нові промокоди"
+                  : "Відкрити меню"
+            }
             className="md:hidden relative w-10 h-10 rounded-full bg-white/60 ring-1 ring-white/70 text-ink"
           >
+            {/* New promo codes: red dot with the envelope-style ripple. */}
+            {hasNewPromos && !mobileOpen && (
+              <>
+                <span aria-hidden="true" className="env-ripple absolute inset-0 rounded-full" />
+                <span
+                  aria-hidden="true"
+                  className="pop absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-brand ring-2 ring-white"
+                />
+              </>
+            )}
             <span
               className={`absolute left-1/2 top-1/2 h-[1.5px] w-4 -translate-x-1/2 bg-current rounded-full transition-transform duration-500 ease-fluid ${
                 mobileOpen ? "rotate-45" : "-translate-y-[4px]"

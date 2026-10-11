@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { Ticket } from "@phosphor-icons/react";
 import Navbar from "@/components/Navbar";
 import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
+import { promoValueLabel, usePromoFeed } from "@/lib/promoFeed";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -42,6 +45,14 @@ export default function CartPage() {
   const [promoChecking, setPromoChecking] = useState(false);
   const [promoError, setPromoError] = useState("");
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+  const [placedNumber, setPlacedNumber] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const promoFeed = usePromoFeed(
+    session?.user?.email ?? session?.user?.name ?? "user",
+    !!session?.user && !isAdmin
+  );
+  const usablePromos = promoFeed.items.filter((p) => p.status === "ACTIVE");
 
   useEffect(() => {
     (async () => {
@@ -78,14 +89,15 @@ export default function CartPage() {
   const total = Math.max(0, subtotal - discountAmount);
   const profileIncomplete = !loading && shops.length === 0;
 
-  async function applyPromo() {
-    if (!promoInput.trim()) return;
+  async function applyPromo(code = promoInput) {
+    if (!code.trim()) return;
+    setPromoInput(code.trim().toUpperCase());
     setPromoChecking(true);
     setPromoError("");
     const res = await fetch("/api/promo/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: promoInput.trim(), subtotal }),
+      body: JSON.stringify({ code: code.trim(), subtotal }),
     });
     const data = await res.json();
     setPromoChecking(false);
@@ -129,6 +141,7 @@ export default function CartPage() {
 
     const order = await res.json();
     setPlacedOrderId(order.id);
+    setPlacedNumber(order.displayNumber ?? null);
     clear();
     setComment("");
     removePromo();
@@ -142,7 +155,7 @@ export default function CartPage() {
           <div className="text-4xl mb-4">✅</div>
           <h1 className="text-lg font-semibold text-slate-900 mb-2">Замовлення оформлено!</h1>
           <p className="text-sm text-slate-500 mb-6">
-            Номер замовлення #{placedOrderId.slice(-6)}. Ми зв&apos;яжемося з вами для
+            {placedNumber ? `Номер замовлення № ${placedNumber}. ` : ""}Ми зв&apos;яжемося з вами для
             підтвердження.
           </p>
           <div className="flex items-center justify-center gap-3">
@@ -350,7 +363,7 @@ export default function CartPage() {
                         className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
                       />
                       <button
-                        onClick={applyPromo}
+                        onClick={() => applyPromo()}
                         disabled={promoChecking || !promoInput.trim()}
                         className="text-xs border border-slate-200 rounded-lg px-3 hover:bg-slate-50 disabled:opacity-50"
                       >
@@ -359,6 +372,44 @@ export default function CartPage() {
                     </div>
                   )}
                   {promoError && <p className="text-xs text-red-600 mt-1">{promoError}</p>}
+
+                  {/* One-click apply for the client's own available codes. */}
+                  {!appliedPromo && usablePromos.length > 0 && (
+                    <div className="rise mt-2 rounded-lg border border-brand/30 bg-red-50/60 p-2.5">
+                      <p className="flex items-center gap-1.5 text-xs font-medium text-slate-700 mb-2">
+                        <span className="relative flex w-2 h-2">
+                          <span className="env-ripple absolute inset-0 rounded-full" />
+                          <span className="relative w-2 h-2 rounded-full bg-brand" />
+                        </span>
+                        {usablePromos.length === 1
+                          ? "У вас є доступний промокод"
+                          : `У вас є доступні промокоди: ${usablePromos.length}`}
+                      </p>
+                      <ul className="space-y-1.5">
+                        {usablePromos.map((p) => (
+                          <li key={p.id} className="flex items-center gap-2">
+                            <Ticket size={18} weight="light" className="text-brand shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs">
+                                <span className="font-mono font-semibold text-slate-900">{p.code}</span>
+                                <span className="ml-1.5 font-semibold text-brand">{promoValueLabel(p)}</span>
+                              </div>
+                              {p.description && (
+                                <div className="text-[11px] text-slate-500 truncate">{p.description}</div>
+                              )}
+                            </div>
+                            <button
+                              onClick={() => applyPromo(p.code)}
+                              disabled={promoChecking}
+                              className="shrink-0 bg-brand text-white text-xs rounded-lg px-3 py-1.5 hover:bg-brand-dark disabled:opacity-50"
+                            >
+                              Застосувати
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
                 </div>
 
                 {shops.length > 0 && (
@@ -399,15 +450,19 @@ export default function CartPage() {
                     <span>Сума</span>
                     <span>{subtotal.toLocaleString("uk-UA")} ₴</span>
                   </div>
-                  {discountAmount > 0 && (
-                    <div className="flex justify-between text-sm text-emerald-600">
-                      <span>Знижка</span>
-                      <span>−{discountAmount.toLocaleString("uk-UA")} ₴</span>
+                  {discountAmount > 0 && appliedPromo && (
+                    <div key={appliedPromo.code} className="rise flex justify-between text-sm text-emerald-600">
+                      <span>
+                        Знижка за промокодом {appliedPromo.code} ({promoValueLabel(appliedPromo)})
+                      </span>
+                      <span className="whitespace-nowrap">−{discountAmount.toLocaleString("uk-UA")} ₴</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-semibold text-slate-900 border-t border-slate-100 pt-2">
                     <span>Разом</span>
-                    <span>{total.toLocaleString("uk-UA")} ₴</span>
+                    <span key={total} className="pop inline-block">
+                      {total.toLocaleString("uk-UA")} ₴
+                    </span>
                   </div>
                 </div>
 

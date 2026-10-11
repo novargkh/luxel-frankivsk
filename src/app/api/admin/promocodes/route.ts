@@ -10,7 +10,10 @@ export async function GET() {
   }
 
   const codes = await prisma.promoCode.findMany({
-    include: { _count: { select: { orders: true } } },
+    include: {
+      _count: { select: { orders: true } },
+      clients: { select: { id: true, name: true, company: true } },
+    },
     orderBy: { createdAt: "desc" },
   });
 
@@ -25,13 +28,17 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json();
-  const { code, type, value, usageLimit, expiresAt } = body as {
-    code: string;
-    type: "PERCENT" | "FIXED";
-    value: number;
-    usageLimit?: number | null;
-    expiresAt?: string | null;
-  };
+  const { code, type, value, usageLimit, expiresAt, description, showToClients, clientIds } =
+    body as {
+      code: string;
+      type: "PERCENT" | "FIXED";
+      value: number;
+      usageLimit?: number | null;
+      expiresAt?: string | null;
+      description?: string | null;
+      showToClients?: boolean;
+      clientIds?: string[];
+    };
 
   if (!code || !type || value === undefined) {
     return NextResponse.json(
@@ -67,6 +74,11 @@ export async function POST(req: Request) {
       value: Number(value),
       usageLimit: usageLimit || null,
       expiresAt: expiresAt ? new Date(expiresAt) : null,
+      description: description?.trim() || null,
+      showToClients: Boolean(showToClients),
+      clients: clientIds?.length
+        ? { connect: clientIds.map((id) => ({ id })) }
+        : undefined,
     },
   });
 

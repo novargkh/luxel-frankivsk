@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validatePromoCode, computeDiscount } from "@/lib/promo";
+import { validatePromoCode, validatePromoForUser, computeDiscount } from "@/lib/promo";
+import { withDisplayNumbers } from "@/lib/orderNumber";
 
 export async function GET() {
   const session = await auth();
@@ -24,7 +25,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(orders);
+  return NextResponse.json(withDisplayNumbers(orders));
 }
 
 export async function POST(req: Request) {
@@ -101,9 +102,14 @@ export async function POST(req: Request) {
       if (promoCode) {
         const promo = await tx.promoCode.findUnique({
           where: { code: promoCode.trim().toUpperCase() },
+          include: { clients: { select: { id: true } } },
         });
         if (!promo) {
           throw new Error("Промокод не знайдено");
+        }
+        const allowed = validatePromoForUser(promo, userId);
+        if (!allowed.ok) {
+          throw new Error(allowed.error);
         }
         const usedCount = await tx.order.count({ where: { promoCodeId: promo.id } });
         const check = validatePromoCode(promo, usedCount);
@@ -148,5 +154,15 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json(order, { status: 201 });
+  // The day's running number needs the client's other orders from around
+  // the same time (two days back covers any timezone edge).
+  const recent = await prisma.order.findMany({
+    where: { userId, createdAt: { gte: new Date(order.createdAt.getTime() - 2 * 86_400_000) } },
+    select: { userId: true, createdAt: true, orderNumber: true },
+  });
+  const displayNumber =
+    withDisplayNumbers(recent).find((o) => o.orderNumber === order.orderNumber)?.displayNumber ??
+    null;
+
+  return NextResponse.json({ ...order, displayNumber }, { status: 201 });
 }

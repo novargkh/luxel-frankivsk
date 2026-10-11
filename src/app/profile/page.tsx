@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
+import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
+import PromoCodes from "@/components/PromoCodes";
+import { usePromoFeed } from "@/lib/promoFeed";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), {
   ssr: false,
@@ -37,6 +40,21 @@ const emptyShopForm = {
 };
 
 export default function ProfilePage() {
+  const { data: session } = useSession();
+  const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
+  const promos = usePromoFeed(
+    session?.user?.email ?? session?.user?.name ?? "user",
+    !!session?.user && !isAdmin
+  );
+  // Snapshot of what was new when the codes first showed up here, so the
+  // "Нове" tags stay visible on this visit after marking them seen.
+  const [newOnPage, setNewOnPage] = useState<Set<string> | null>(null);
+  if (promos.loaded && newOnPage === null) setNewOnPage(promos.newIds);
+  const { markSeen } = promos;
+  useEffect(() => {
+    if (newOnPage) markSeen();
+  }, [newOnPage, markSeen]);
+
   const [profile, setProfile] = useState<Profile | null>(null);
   const [name, setName] = useState("");
   const [company, setCompany] = useState("");
@@ -206,6 +224,19 @@ export default function ProfilePage() {
             Профіль ще не заповнено. Додайте хоча б один магазин з адресою та
             геоміткою нижче, щоб мати змогу оформлювати замовлення.
           </div>
+        )}
+
+        {!isAdmin && (
+          <section className="mb-6" aria-labelledby="profile-promos">
+            <h2 id="profile-promos" className="text-sm font-semibold text-slate-900 mb-3">
+              Доступні промокоди
+            </h2>
+            <PromoCodes
+              items={promos.items}
+              newIds={newOnPage ?? new Set()}
+              loaded={promos.loaded}
+            />
+          </section>
         )}
 
         <section className="border border-slate-200 bg-white rounded-xl p-4 mb-6">
