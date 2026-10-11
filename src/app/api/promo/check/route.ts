@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { validatePromoCode, validatePromoForUser, computeDiscount } from "@/lib/promo";
+import { validatePromoCode, computeDiscount } from "@/lib/promo";
 
 export async function POST(req: Request) {
   const session = await auth();
-  const userId = (session?.user as { id?: string } | undefined)?.id;
-  if (!userId) {
+  if (!session?.user) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
@@ -17,16 +16,10 @@ export async function POST(req: Request) {
 
   const promo = await prisma.promoCode.findUnique({
     where: { code: code.trim().toUpperCase() },
-    include: { clients: { select: { id: true } } },
   });
 
   if (!promo) {
     return NextResponse.json({ valid: false, error: "Промокод не знайдено" });
-  }
-
-  const allowed = validatePromoForUser(promo, userId);
-  if (!allowed.ok) {
-    return NextResponse.json({ valid: false, error: allowed.error });
   }
 
   const usedCount = await prisma.order.count({ where: { promoCodeId: promo.id } });

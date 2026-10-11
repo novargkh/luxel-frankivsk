@@ -14,18 +14,10 @@ export async function PATCH(
 
   const { id } = await params;
   const body = await req.json();
-  const { isActive, description, showToClients, clientIds } = body as {
-    isActive?: boolean;
-    description?: string | null;
-    showToClients?: boolean;
-    clientIds?: string[];
-  };
+  const { isActive } = body as { isActive?: boolean };
 
   const data: Record<string, unknown> = {};
   if (isActive !== undefined) data.isActive = isActive;
-  if (description !== undefined) data.description = description?.trim() || null;
-  if (showToClients !== undefined) data.showToClients = showToClients;
-  if (clientIds !== undefined) data.clients = { set: clientIds.map((cid) => ({ id: cid })) };
 
   const promo = await prisma.promoCode.update({ where: { id }, data });
   return NextResponse.json(promo);

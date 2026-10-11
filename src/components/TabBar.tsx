@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  ArrowUUpLeft,
   Receipt,
   ShoppingBag,
   SquaresFour,
   Tag,
+  UserCircle,
   type Icon,
 } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
@@ -17,8 +17,7 @@ const TABS: { href: string; label: string; icon: Icon }[] = [
   { href: "/promotions", label: "Акції", icon: Tag },
   { href: "/cart", label: "Кошик", icon: ShoppingBag },
   { href: "/orders", label: "Замовлення", icon: Receipt },
-  // Profile lives in the top menu (hamburger) on phones.
-  { href: "/returns", label: "Повернення", icon: ArrowUUpLeft },
+  { href: "/profile", label: "Профіль", icon: UserCircle },
 ];
 
 // Mobile bottom tab bar: a floating Liquid Glass (web approximation) pill
