@@ -41,7 +41,6 @@ type Product = {
   images: ProductImage[];
 };
 
-type Announcement = { id: string; title: string; body: string; createdAt: string };
 type Shop = { id: string; name: string; address: string };
 
 const UNCATEGORIZED = "Інше";
@@ -201,10 +200,8 @@ function SpecsModal({ product, onClose }: { product: Product; onClose: () => voi
 
 export default function CatalogPage() {
   const [products, setProducts] = useState<Product[]>([]);
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [shops, setShops] = useState<Shop[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAnnouncements, setShowAnnouncements] = useState(true);
 
   const [search, setSearch] = useState("");
   // Category tree: a top-level group (e.g. "LED Освітлення") expands to
@@ -295,14 +292,13 @@ export default function CatalogPage() {
 
   async function loadData() {
     setLoading(true);
-    const [productsRes, announcementsRes, shopsRes] = await Promise.all([
+    // Announcements live in the envelope in the top bar (Inbox).
+    const [productsRes, shopsRes] = await Promise.all([
       fetch("/api/products"),
-      fetch("/api/announcements"),
       fetch("/api/shops"),
     ]);
     const productsData: Product[] = await productsRes.json();
     setProducts(productsData);
-    setAnnouncements(await announcementsRes.json());
     setShops(await shopsRes.json());
     setLoading(false);
     // Deliberately does NOT auto-expand anything — the tree starts fully
@@ -587,29 +583,7 @@ export default function CatalogPage() {
           </Bezel>
         )}
 
-        {announcements.length > 0 && showAnnouncements && (
-          <Bezel className="reveal mb-10">
-            <section className="relative p-5 sm:p-6">
-              <button
-                onClick={() => setShowAnnouncements(false)}
-                className="absolute top-3.5 right-3.5 w-9 h-9 inline-flex items-center justify-center rounded-full text-muted hover:text-ink hover:bg-ink/[0.05] transition-colors duration-300 ease-fluid"
-                aria-label="Приховати сповіщення"
-              >
-                <X size={16} weight="light" />
-              </button>
-              <h2 className="text-[15px] font-semibold tracking-[-0.01em] text-ink mb-3">Сповіщення</h2>
-              <div className="space-y-2 pr-10">
-                {announcements.slice(0, 3).map((a) => (
-                  <p key={a.id} className="text-[15px] leading-relaxed text-ink/75 max-w-[75ch]">
-                    <span className="font-semibold text-ink">{a.title}.</span> {a.body}
-                  </p>
-                ))}
-              </div>
-            </section>
-          </Bezel>
-        )}
-
-        <header className="reveal mb-10 sm:mb-12 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+        <header className="reveal mb-10 sm:mb-12">
           <div>
             <span className="inline-flex items-center rounded-full bg-white/60 ring-1 ring-white/80 px-3 py-1 text-[10px] font-medium uppercase tracking-[0.2em] text-muted mb-5">
               Оптовий кабінет
@@ -624,15 +598,6 @@ export default function CatalogPage() {
               </p>
             )}
           </div>
-          <Link
-            href="/promotions"
-            className="group self-start md:self-auto h-12 inline-flex items-center gap-3 rounded-full glass-card sheen pl-5 pr-1.5 text-sm font-medium text-ink whitespace-nowrap active:scale-[0.98] transition-transform duration-300 ease-fluid"
-          >
-            Акції
-            <span className="w-9 h-9 rounded-full bg-brand text-white inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
-              <ArrowRight size={16} weight="bold" />
-            </span>
-          </Link>
         </header>
 
         {/* Search + filters, sticky under the floating navbar so they stay

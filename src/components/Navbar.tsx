@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { CaretDown, ShoppingBag, SignOut } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
+import Inbox from "@/components/Inbox";
 
 const CLIENT_LINKS = [
   { href: "/", label: "Каталог" },
@@ -189,6 +190,7 @@ export default function Navbar() {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <Inbox userKey={session.user.email ?? session.user.name ?? "user"} />
           <Link
             href="/cart"
             aria-label={totalQty > 0 ? `Кошик, товарів: ${totalQty}` : "Кошик"}
