@@ -16,7 +16,14 @@ export async function POST(req: Request) {
 
   const promo = await prisma.promoCode.findUnique({
     where: { code: code.trim().toUpperCase() },
+    include: { clients: { select: { id: true } } },
   });
+
+  // A code handed to specific clients works only for them.
+  const userId = (session.user as { id?: string }).id;
+  if (promo && promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId)) {
+    return NextResponse.json({ valid: false, error: "Промокод не знайдено" });
+  }
 
   if (!promo) {
     return NextResponse.json({ valid: false, error: "Промокод не знайдено" });

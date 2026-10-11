@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validatePromoCode, computeDiscount } from "@/lib/promo";
+import { orderNumbers } from "@/lib/docNumber";
 
 export async function GET() {
   const session = await auth();
@@ -24,7 +25,9 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  return NextResponse.json(orders);
+  // Readable numbers like "11.10.25-3" (date + order of the day).
+  const numbers = await orderNumbers(orders);
+  return NextResponse.json(orders.map((o) => ({ ...o, number: numbers.get(o.id) ?? null })));
 }
 
 export async function POST(req: Request) {
@@ -101,7 +104,12 @@ export async function POST(req: Request) {
       if (promoCode) {
         const promo = await tx.promoCode.findUnique({
           where: { code: promoCode.trim().toUpperCase() },
+          include: { clients: { select: { id: true } } },
         });
+        // A code handed to specific clients works only for them.
+        if (promo && promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId)) {
+          throw new Error("Промокод не знайдено");
+        }
         if (!promo) {
           throw new Error("Промокод не знайдено");
         }
@@ -148,5 +156,6 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json(order, { status: 201 });
+  const numbers = await orderNumbers([order]);
+  return NextResponse.json({ ...order, number: numbers.get(order.id) ?? null }, { status: 201 });
 }

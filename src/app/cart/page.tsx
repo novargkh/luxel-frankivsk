@@ -5,6 +5,8 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
+import { Ticket } from "@phosphor-icons/react";
+import { promoValueText, type AvailablePromo } from "@/components/PromoWallet";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -42,6 +44,15 @@ export default function CartPage() {
   const [promoChecking, setPromoChecking] = useState(false);
   const [promoError, setPromoError] = useState("");
   const [placedOrderId, setPlacedOrderId] = useState<string | null>(null);
+  // Promo codes handed to this client that can be applied right now.
+  const [offers, setOffers] = useState<AvailablePromo[]>([]);
+
+  useEffect(() => {
+    fetch("/api/promo/available")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((d: AvailablePromo[]) => setOffers(Array.isArray(d) ? d.filter((p) => p.usable) : []))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -78,14 +89,16 @@ export default function CartPage() {
   const total = Math.max(0, subtotal - discountAmount);
   const profileIncomplete = !loading && shops.length === 0;
 
-  async function applyPromo() {
-    if (!promoInput.trim()) return;
+  async function applyPromo(codeArg?: string) {
+    const code = (codeArg ?? promoInput).trim();
+    if (!code) return;
+    if (codeArg) setPromoInput(codeArg);
     setPromoChecking(true);
     setPromoError("");
     const res = await fetch("/api/promo/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code: promoInput.trim(), subtotal }),
+      body: JSON.stringify({ code, subtotal }),
     });
     const data = await res.json();
     setPromoChecking(false);
@@ -128,7 +141,7 @@ export default function CartPage() {
     }
 
     const order = await res.json();
-    setPlacedOrderId(order.id);
+    setPlacedOrderId(order.number ?? order.id.slice(-6));
     clear();
     setComment("");
     removePromo();
@@ -142,7 +155,7 @@ export default function CartPage() {
           <div className="text-4xl mb-4">✅</div>
           <h1 className="text-lg font-semibold text-slate-900 mb-2">Замовлення оформлено!</h1>
           <p className="text-sm text-slate-500 mb-6">
-            Номер замовлення #{placedOrderId.slice(-6)}. Ми зв&apos;яжемося з вами для
+            Номер замовлення № {placedOrderId}. Ми зв&apos;яжемося з вами для
             підтвердження.
           </p>
           <div className="flex items-center justify-center gap-3">
@@ -204,6 +217,40 @@ export default function CartPage() {
           </div>
         ) : (
           <>
+            {offers.length > 0 && !appliedPromo && (
+              <div className="reveal mb-4 rounded-[1.75rem] glass-tray p-1.5">
+                <div className="rounded-[calc(1.75rem-0.375rem)] glass-card p-4 sm:p-5">
+                  <p className="flex items-center gap-2 text-sm font-semibold text-ink mb-3">
+                    <span className="relative inline-flex">
+                      <span aria-hidden="true" className="env-ripple absolute inset-0 rounded-full" />
+                      <Ticket size={20} weight="fill" className="env-shake text-brand" />
+                    </span>
+                    {offers.length === 1 ? "У вас є промокод" : `У вас є промокоди: ${offers.length}`}
+                  </p>
+                  <ul className="space-y-2">
+                    {offers.map((o) => (
+                      <li
+                        key={o.id}
+                        className="flex items-center gap-3 rounded-2xl bg-white/80 ring-1 ring-white pl-4 pr-1.5 py-1.5"
+                      >
+                        <span className="text-base font-semibold text-ink tabular shrink-0">{promoValueText(o)}</span>
+                        <span className="min-w-0 flex-1 text-sm text-ink/70 truncate">
+                          {o.description || o.code}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => applyPromo(o.code)}
+                          disabled={promoChecking}
+                          className="shrink-0 h-10 rounded-full bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-dark active:scale-[0.97] transition-all duration-300 ease-fluid disabled:opacity-50"
+                        >
+                          Застосувати
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
             <div className="border border-slate-200 bg-white rounded-xl overflow-hidden mb-4">
               {/* Desktop/tablet: full invoice table (unchanged). Hidden on
                   mobile — a fixed 5-column table can't reflow on a narrow
@@ -350,7 +397,7 @@ export default function CartPage() {
                         className="flex-1 border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-mono"
                       />
                       <button
-                        onClick={applyPromo}
+                        onClick={() => applyPromo()}
                         disabled={promoChecking || !promoInput.trim()}
                         className="text-xs border border-slate-200 rounded-lg px-3 hover:bg-slate-50 disabled:opacity-50"
                       >
@@ -401,13 +448,13 @@ export default function CartPage() {
                   </div>
                   {discountAmount > 0 && (
                     <div className="flex justify-between text-sm text-emerald-600">
-                      <span>Знижка</span>
-                      <span>−{discountAmount.toLocaleString("uk-UA")} ₴</span>
+                      <span>Знижка{appliedPromo ? ` (${appliedPromo.code})` : ""}</span>
+                      <span key={discountAmount} className="pop inline-block">-{discountAmount.toLocaleString("uk-UA")} ₴</span>
                     </div>
                   )}
                   <div className="flex justify-between text-base font-semibold text-slate-900 border-t border-slate-100 pt-2">
                     <span>Разом</span>
-                    <span>{total.toLocaleString("uk-UA")} ₴</span>
+                    <span key={total} className="pop inline-block">{total.toLocaleString("uk-UA")} ₴</span>
                   </div>
                 </div>
 

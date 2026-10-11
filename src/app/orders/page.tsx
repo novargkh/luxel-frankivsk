@@ -19,6 +19,7 @@ import Navbar from "@/components/Navbar";
 import { useCart } from "@/lib/cart";
 import { extractAttributes } from "@/lib/similarity";
 import { downloadCsv } from "@/lib/csv";
+import { textMatches } from "@/lib/itemSearch";
 
 type OrderItem = {
   id: string;
@@ -36,6 +37,8 @@ type OrderItem = {
 
 type Order = {
   id: string;
+  /** Readable number with the date, e.g. "11.10.25-3" (from the API). */
+  number?: string | null;
   status: "NEW" | "CONFIRMED" | "SHIPPED" | "CANCELLED";
   comment: string | null;
   createdAt: string;
@@ -70,7 +73,7 @@ const STATUS_FILTERS: { value: "ALL" | Order["status"]; label: string }[] = [
 ];
 
 const money = (n: number) => `${n.toLocaleString("uk-UA")} ₴`;
-const shortId = (id: string) => id.slice(-6).toUpperCase();
+const orderNo = (o: { id: string; number?: string | null }) => o.number ?? o.id.slice(-6).toUpperCase();
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleString("uk-UA", {
     day: "2-digit",
@@ -209,26 +212,33 @@ export default function OrdersPage() {
     });
   }
 
+  // Search: typing an article or product name finds every order (накладна)
+  // that contains that position; inside each found order only the matching
+  // lines are shown first (the rest can be revealed). Searching by order
+  // number, shop or client finds the whole order.
+  const q = query.trim();
+  const matchedItems = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    if (!q) return map;
+    for (const o of orders) {
+      const hits = o.items.filter((i) => textMatches(i.product.name, q)).map((i) => i.id);
+      if (hits.length > 0) map.set(o.id, new Set(hits));
+    }
+    return map;
+  }, [orders, q]);
+  const [showAllLines, setShowAllLines] = useState<Set<string>>(new Set());
+
   const visibleOrders = useMemo(() => {
-    const q = query.trim().toLowerCase();
     return orders.filter((o) => {
       if (isAdmin && onlyNotExported && o.exportedAt) return false;
       if (statusFilter !== "ALL" && o.status !== statusFilter) return false;
       if (q) {
-        const hay = [
-          o.id.slice(-6),
-          o.shop?.name ?? "",
-          o.user?.name ?? "",
-          o.user?.company ?? "",
-          ...o.items.map((i) => i.product.name),
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!hay.includes(q)) return false;
+        const meta = [orderNo(o), o.shop?.name ?? "", o.user?.name ?? "", o.user?.company ?? ""].join(" ");
+        if (!textMatches(meta, q) && !matchedItems.has(o.id)) return false;
       }
       return true;
     });
-  }, [orders, isAdmin, onlyNotExported, statusFilter, query]);
+  }, [orders, isAdmin, onlyNotExported, statusFilter, q, matchedItems]);
 
   function toggleSelected(id: string) {
     setSelected((prev) => {
@@ -272,7 +282,7 @@ export default function OrdersPage() {
       for (const item of order.items) {
         const article = extractAttributes(item.product.name).article ?? "";
         rows.push([
-          order.id.slice(-6),
+          orderNo(order),
           new Date(order.createdAt).toLocaleString("uk-UA"),
           order.user?.name ?? "",
           order.user?.company ?? "",
@@ -425,6 +435,19 @@ export default function OrdersPage() {
           </div>
         )}
 
+        {!loading && q && visibleOrders.length > 0 && (
+          <p className="mb-4 px-1 text-sm text-muted tabular">
+            {matchedItems.size > 0
+              ? `Позицію знайдено в ${[...matchedItems.keys()].filter((id) => visibleOrders.some((o) => o.id === id)).length} ${plural(
+                  [...matchedItems.keys()].filter((id) => visibleOrders.some((o) => o.id === id)).length,
+                  "накладній",
+                  "накладних",
+                  "накладних"
+                )}`
+              : `Знайдено замовлень: ${visibleOrders.length}`}
+          </p>
+        )}
+
         {loading ? (
           <div className="space-y-3" aria-busy="true" aria-label="Завантаження замовлень">
             {[0, 1, 2].map((i) => (
@@ -457,7 +480,13 @@ export default function OrdersPage() {
             {visibleOrders.map((order, oi) => {
               const subtotal = order.items.reduce((s, i) => s + i.priceAtOrder * i.quantity, 0);
               const total = Math.max(0, subtotal - (order.discountAmount || 0));
-              const isOpen = open.has(order.id) || query.trim().length > 0;
+              const isOpen = open.has(order.id) || q.length > 0;
+              const hits = matchedItems.get(order.id);
+              // While searching, show the matching lines first (the rest on
+              // demand), so the found position is immediately visible.
+              const lines =
+                hits && !showAllLines.has(order.id) ? order.items.filter((i) => hits.has(i.id)) : order.items;
+              const hiddenLines = order.items.length - lines.length;
               const units = order.items.reduce((s, i) => s + i.quantity, 0);
               return (
                 <section
@@ -477,7 +506,7 @@ export default function OrdersPage() {
                           type="checkbox"
                           checked={selected.has(order.id)}
                           onChange={() => toggleSelected(order.id)}
-                          aria-label={`Обрати замовлення ${shortId(order.id)}`}
+                          aria-label={`Обрати замовлення ${orderNo(order)}`}
                           className="mt-1.5 w-4 h-4 accent-[var(--ink)]"
                         />
                       )}
@@ -489,7 +518,7 @@ export default function OrdersPage() {
                       >
                         <div className="flex items-center gap-x-3 gap-y-1 flex-wrap">
                           <span className="text-lg sm:text-xl font-semibold tracking-[-0.02em] text-ink tabular">
-                            № {shortId(order.id)}
+                            № {orderNo(order)}
                           </span>
                           {!isAdmin && (
                             <span
@@ -601,7 +630,7 @@ export default function OrdersPage() {
                               </tr>
                             </thead>
                             <tbody>
-                              {order.items.map((item, ii) => {
+                              {lines.map((item, ii) => {
                                 const ok = canReorder(item);
                                 const added = justAdded.has(item.id);
                                 const img = item.product.images?.[0]?.url;
@@ -611,7 +640,7 @@ export default function OrdersPage() {
                                     key={item.id}
                                     className={`border-t border-black/[0.04] align-middle hover:bg-white/60 transition-colors duration-300 ease-fluid ${
                                       isOpen && ii < 14 ? "rise" : ""
-                                    }`}
+                                    } ${hits?.has(item.id) ? "bg-brand/[0.05]" : ""}`}
                                     style={isOpen ? { ["--i" as string]: ii } : undefined}
                                   >
                                     <td className="py-3 pl-4 sm:pl-6 pr-2">
@@ -682,6 +711,15 @@ export default function OrdersPage() {
                               })}
                             </tbody>
                           </table>
+                          {hiddenLines > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setShowAllLines((prev) => new Set(prev).add(order.id))}
+                              className="w-full border-t border-black/[0.04] py-3 text-sm font-medium text-ink/70 hover:text-ink hover:bg-white/60"
+                            >
+                              Показати всю накладну (ще {hiddenLines})
+                            </button>
+                          )}
                         </div>
 
                         {/* Totals + actions */}
