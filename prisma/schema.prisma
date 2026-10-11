@@ -122,6 +122,16 @@ model Product {
   // luxel.ua page ({label: value}), shown via the "Характеристики" button.
   // Null until the admin runs the specs sync.
   specs       Json?
+  // Daily stock check against the product's luxel.ua page (see
+  // src/lib/stockSync.ts): when it last ran for this product and what the
+  // page said ("В наявності", "Немає в наявності", "Не знайдено").
+  stockSyncedAt DateTime?
+  sourceStatus  String?
+  // Manual availability set by an admin for today: "in" | "low" | "out".
+  // Wins over the automatic status until the next daily stock check, which
+  // clears it. Highlighted in the admin while set.
+  stockOverride   String?
+  stockOverrideAt DateTime?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -277,4 +287,22 @@ model ReturnItem {
   orderItemId String
   orderItem   OrderItem     @relation(fields: [orderItemId], references: [id])
   quantity    Int
+}
+
+// One run of the luxel.ua stock check (daily cron or the admin button).
+model StockSyncRun {
+  id          String    @id @default(cuid())
+  trigger     String    // "cron" | "admin"
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  checked     Int       @default(0)
+  changed     Int       @default(0)
+  inStock     Int       @default(0)
+  outOfStock  Int       @default(0)
+  notFound    Int       @default(0)
+  failed      Int       @default(0)
+  remaining   Int       @default(0)
+  priceDiffs  Int       @default(0)
+  // Up to ~30 sample lines for the admin ("назва: 20 → 0").
+  details     Json?
 }

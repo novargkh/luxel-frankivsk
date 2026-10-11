@@ -424,7 +424,7 @@ export default function ReturnsPage() {
         {/* Floating summary: shows the return keeps collecting positions and
             leads on to the reason / sending. */}
         {!isAdmin && pickedEntries.length > 0 && !reasonFocus && (
-          <div className="no-print fixed inset-x-3 z-20 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none">
+          <div className="vv-fixed no-print fixed inset-x-3 z-20 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none">
             <div className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-[1.75rem] pl-5 pr-1.5 py-1.5 flex items-center justify-between gap-3">
               <div className="min-w-0 leading-tight">
                 <div className="text-xs text-muted">Можна додати ще</div>

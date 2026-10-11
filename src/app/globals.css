@@ -38,6 +38,12 @@ body {
   overflow-x: clip;
 }
 
+/* Bottom bars follow the real screen bottom on iOS, see ViewportFix.tsx.
+   `translate` (not transform) so it composes with entry animations. */
+.vv-fixed {
+  translate: 0 var(--vv-shift, 0px);
+}
+
 /* Room for the floating bottom tab bar on phones. */
 @media (max-width: 767px) {
   body {

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { availabilityOf } from "@/lib/availability";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { validatePromoCode, computeDiscount } from "@/lib/promo";
@@ -27,7 +28,16 @@ export async function GET() {
 
   // Readable numbers like "11.10.25-3" (date + order of the day).
   const numbers = await orderNumbers(orders);
-  return NextResponse.json(orders.map((o) => ({ ...o, number: numbers.get(o.id) ?? null })));
+  return NextResponse.json(
+    orders.map((o) => ({
+      ...o,
+      number: numbers.get(o.id) ?? null,
+      items: o.items.map((i) => ({
+        ...i,
+        product: { ...i.product, availability: availabilityOf(i.product) },
+      })),
+    }))
+  );
 }
 
 export async function POST(req: Request) {
@@ -82,9 +92,11 @@ export async function POST(req: Request) {
     if (item.quantity < 1) {
       return NextResponse.json({ error: "Некоректна кількість" }, { status: 400 });
     }
-    if (product.stock < item.quantity) {
+    // No quantity cap by stock (owner's decision); only products that are
+    // marked "Немає в наявності" (automatically or by an admin) cannot be ordered.
+    if (availabilityOf(product) === "out") {
       return NextResponse.json(
-        { error: `Недостатньо залишку для товару "${product.name}"` },
+        { error: `Товару немає в наявності: "${product.name}"` },
         { status: 400 }
       );
     }
@@ -140,12 +152,9 @@ export async function POST(req: Request) {
         include: { items: { include: { product: true } }, promoCode: true },
       });
 
-      for (const item of items) {
-        await tx.product.update({
-          where: { id: item.productId },
-          data: { stock: { decrement: item.quantity } },
-        });
-      }
+      // Stock is not decremented here: it mirrors the luxel.ua warehouse and
+      // is refreshed by the daily check (src/lib/stockSync.ts). Decrementing
+      // would let one big order zero a product for every other client.
 
       return created;
     });

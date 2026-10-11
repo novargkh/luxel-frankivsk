@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { normalizeCategory } from "@/lib/categorize";
 import { prisma } from "@/lib/prisma";
+import { autoAvailability, availabilityOf } from "@/lib/availability";
 
 export async function GET() {
   const session = await auth();
@@ -20,6 +21,10 @@ export async function GET() {
     products.map((product) => ({
       ...product,
       category: product.category ? normalizeCategory(product.category) : product.category,
+      // Effective status (admin override for today, else automatic) and the
+      // automatic one, so the admin can see what the override replaced.
+      availability: availabilityOf(product),
+      availabilityAuto: autoAvailability(product.stock, product.boxQty),
     }))
   );
 }

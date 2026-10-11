@@ -303,7 +303,7 @@ export default function CartPage() {
                         <QtyInput
                           value={quantity}
                           min={1}
-                          max={product.stock}
+                          max={99999}
                           onChange={(n) => setQty(product.id, n)}
                           className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center"
                         />
@@ -360,7 +360,7 @@ export default function CartPage() {
                       <QtyInput
                         value={quantity}
                         min={1}
-                        max={product.stock}
+                        max={99999}
                         onChange={(n) => setQty(product.id, n)}
                         className="w-16 border border-slate-200 rounded px-2 py-1 text-xs text-center"
                       />

@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Navbar from "@/components/Navbar";
 import { parseCsv } from "@/lib/csv";
 import * as XLSX from "xlsx";
+import { AVAILABILITY_LABEL, type Availability } from "@/lib/availability";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -20,6 +21,12 @@ type Product = {
   images: ProductImage[];
   article: string | null;
   basId: string | null;
+  boxQty?: number | null;
+  sourceStatus?: string | null;
+  stockOverride?: Availability | null;
+  stockOverrideAt?: string | null;
+  availability?: Availability;
+  availabilityAuto?: Availability;
 };
 
 const emptyForm = {
@@ -340,6 +347,80 @@ export default function AdminProductsPage() {
     }
   }
 
+  type StockRun = {
+    trigger: string;
+    startedAt: string;
+    finishedAt: string | null;
+    checked: number;
+    changed: number;
+    inStock: number;
+    outOfStock: number;
+    notFound: number;
+    failed: number;
+    remaining: number;
+    priceDiffs: number;
+    details: {
+      changes?: { name: string; from: number; to: number; status: string }[];
+      prices?: { name: string; ours: number; site: number }[];
+    } | null;
+  };
+  const [stockRun, setStockRun] = useState<StockRun | null>(null);
+  const [syncingStock, setSyncingStock] = useState(false);
+  const [stockErr, setStockErr] = useState("");
+  const [showStockDetails, setShowStockDetails] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/admin/sync-stock")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => d && setStockRun(d))
+      .catch(() => {});
+  }, []);
+
+  async function syncStock() {
+    setSyncingStock(true);
+    setStockErr("");
+    try {
+      const res = await fetch("/api/admin/sync-stock", { method: "POST" });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        setStockErr(data?.error ?? "Не вдалося оновити залишки");
+        return;
+      }
+      setStockRun(data);
+      setShowStockDetails(true);
+      load();
+    } catch {
+      setStockErr("Не вдалося з'єднатися з сервером");
+    } finally {
+      setSyncingStock(false);
+    }
+  }
+
+  const [onlyManual, setOnlyManual] = useState(false);
+
+  // Manual availability for today; "" goes back to the system status.
+  // The next daily stock check (~08:00) clears it anyway.
+  async function setAvailability(id: string, value: Availability | "") {
+    setProducts((list) =>
+      list.map((p) =>
+        p.id === id
+          ? {
+              ...p,
+              stockOverride: value || null,
+              stockOverrideAt: value ? new Date().toISOString() : null,
+              availability: value || p.availabilityAuto,
+            }
+          : p
+      )
+    );
+    await fetch(`/api/products/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stockOverride: value || null }),
+    });
+    load();
+  }
+
   async function saveStock(id: string) {
     const value = stockDrafts[id];
     if (value === undefined) return;
@@ -379,6 +460,14 @@ export default function AdminProductsPage() {
               {recategorizing ? "Оновлення..." : "Оновити категорії"}
             </button>
             <button
+              onClick={syncStock}
+              disabled={syncingStock}
+              title="Перевіряє наявність і кількість кожного товару на luxel.ua. Автоматично щодня близько 08:00"
+              className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
+            >
+              {syncingStock ? "Перевіряю (1–3 хв)..." : "Оновити залишки"}
+            </button>
+            <button
               onClick={syncSpecs}
               disabled={syncingSpecs}
               title="Завантажує повну таблицю характеристик з картки товару на luxel.ua для кожного товару"
@@ -411,6 +500,81 @@ export default function AdminProductsPage() {
               + Додати товар
             </button>
           </div>
+        </div>
+
+        <div className="mb-4 text-sm rounded-lg px-3 py-2 bg-slate-50 border border-slate-200 text-slate-700">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-medium">Залишки з luxel.ua</span>
+            {stockRun ? (
+              <>
+                <span>
+                  Останнє оновлення:{" "}
+                  {new Date(stockRun.finishedAt ?? stockRun.startedAt).toLocaleString("uk-UA", {
+                    timeZone: "Europe/Kyiv",
+                    day: "2-digit",
+                    month: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}{" "}
+                  ({stockRun.trigger === "cron" ? "автоматично" : "вручну"})
+                  {!stockRun.finishedAt && ", не завершено"}
+                </span>
+                <span className="text-slate-500">
+                  перевірено {stockRun.checked}, в наявності {stockRun.inStock}, немає {stockRun.outOfStock}
+                  {stockRun.notFound > 0 && `, не знайдено на сайті ${stockRun.notFound}`}
+                  {stockRun.failed > 0 && `, помилок ${stockRun.failed}`}, змінено {stockRun.changed}
+                  {stockRun.remaining > 0 && `, не встигли ${stockRun.remaining} (перевіряться наступного разу)`}
+                  {stockRun.priceDiffs > 0 && `, ціна на сайті інша у ${stockRun.priceDiffs}`}
+                </span>
+                {stockRun.details && (stockRun.details.changes?.length || stockRun.details.prices?.length) ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowStockDetails((v) => !v)}
+                    className="text-brand underline underline-offset-2"
+                  >
+                    {showStockDetails ? "Сховати" : "Деталі"}
+                  </button>
+                ) : null}
+              </>
+            ) : (
+              <span className="text-slate-500">ще не запускалось. Автоматично щодня близько 08:00.</span>
+            )}
+          </div>
+          {stockErr && <p className="mt-1 text-red-600">{stockErr}</p>}
+          {showStockDetails && stockRun?.details && (
+            <div className="mt-2 grid gap-3 md:grid-cols-2">
+              {!!stockRun.details.changes?.length && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 mb-1">Змінилась кількість</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {stockRun.details.changes.map((c, i) => (
+                      <li key={i} className="flex justify-between gap-2">
+                        <span className="truncate">{c.name}</span>
+                        <span className="whitespace-nowrap tabular-nums">
+                          {c.from} → <b className={c.to === 0 ? "text-red-600" : ""}>{c.to}</b>
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {!!stockRun.details.prices?.length && (
+                <div>
+                  <p className="text-xs font-medium text-slate-500 mb-1">Ціна на luxel.ua відрізняється (не змінювали)</p>
+                  <ul className="space-y-0.5 text-xs">
+                    {stockRun.details.prices.map((c, i) => (
+                      <li key={i} className="flex justify-between gap-2">
+                        <span className="truncate">{c.name}</span>
+                        <span className="whitespace-nowrap tabular-nums">
+                          у нас {c.ours} / сайт {c.site}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {importPackagingMsg && (
@@ -611,6 +775,23 @@ export default function AdminProductsPage() {
           </div>
         )}
 
+        {!loading && (
+          <div className="mb-2 flex items-center gap-3 text-sm">
+            <label className="inline-flex items-center gap-2 text-slate-700">
+              <input
+                type="checkbox"
+                checked={onlyManual}
+                onChange={(e) => setOnlyManual(e.target.checked)}
+              />
+              Тільки змінені вручну
+            </label>
+            <span className="text-xs text-slate-500">
+              Змінено вручну сьогодні: {products.filter((p) => p.stockOverride).length}. Щоранку о ~08:00
+              статуси знову беруться з luxel.ua.
+            </span>
+          </div>
+        )}
+
         {loading ? (
           <p className="text-sm text-slate-500">Завантаження...</p>
         ) : (
@@ -621,14 +802,20 @@ export default function AdminProductsPage() {
                   <th className="text-left px-3 py-2 font-medium">Товар</th>
                   <th className="text-left px-3 py-2 font-medium">Ціна</th>
                   <th className="text-left px-3 py-2 font-medium">Залишок</th>
+                  <th className="text-left px-3 py-2 font-medium">Статус для клієнтів</th>
                   <th className="text-left px-3 py-2 font-medium">Акція</th>
                   <th className="text-left px-3 py-2 font-medium">Показ</th>
                   <th className="text-right px-3 py-2 font-medium">Дії</th>
                 </tr>
               </thead>
               <tbody>
-                {products.map((p) => (
-                  <tr key={p.id} className="border-t border-slate-100">
+                {products
+                  .filter((p) => !onlyManual || p.stockOverride)
+                  .map((p) => (
+                  <tr
+                    key={p.id}
+                    className={`border-t border-slate-100 ${p.stockOverride ? "bg-amber-50" : ""}`}
+                  >
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-2">
                         {p.images[0] ? (
@@ -657,6 +844,36 @@ export default function AdminProductsPage() {
                         onBlur={() => saveStock(p.id)}
                         className="w-20 border border-slate-200 rounded px-2 py-1 text-xs"
                       />
+                    </td>
+                    <td className="px-3 py-2">
+                      <select
+                        value={p.stockOverride ?? ""}
+                        onChange={(e) => setAvailability(p.id, e.target.value as Availability | "")}
+                        aria-label="Статус наявності"
+                        className={`border rounded px-2 py-1 text-xs ${
+                          p.stockOverride
+                            ? "border-amber-400 bg-amber-100 text-amber-900 font-medium"
+                            : "border-slate-200 bg-white text-slate-700"
+                        }`}
+                      >
+                        <option value="">
+                          Авто: {AVAILABILITY_LABEL[p.availabilityAuto ?? "in"]}
+                        </option>
+                        <option value="in">{AVAILABILITY_LABEL.in}</option>
+                        <option value="low">{AVAILABILITY_LABEL.low}</option>
+                        <option value="out">{AVAILABILITY_LABEL.out}</option>
+                      </select>
+                      {p.stockOverride && p.stockOverrideAt && (
+                        <div className="mt-0.5 text-[11px] text-amber-700">
+                          вручну о{" "}
+                          {new Date(p.stockOverrideAt).toLocaleTimeString("uk-UA", {
+                            timeZone: "Europe/Kyiv",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                          , до ранкової перевірки
+                        </div>
+                      )}
                     </td>
                     <td className="px-3 py-2">
                       {p.isPromo ? (

@@ -242,7 +242,7 @@ export default function QuickOrderPage() {
       const p = l.chosen!;
       const have = cart[p.id] ?? 0;
       const want = have + l.qty;
-      setQty(p.id, p.stock > 0 ? Math.min(p.stock, want) : want);
+      setQty(p.id, want);
     }
     router.push("/cart");
   }
@@ -453,7 +453,7 @@ export default function QuickOrderPage() {
 
       {/* Add-to-cart bar */}
       {lines.length > 0 && (
-        <div className="no-print fixed inset-x-3 z-20 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none">
+        <div className="vv-fixed no-print fixed inset-x-3 z-20 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none">
           <div className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-[1.75rem] pl-5 pr-1.5 py-1.5 flex items-center justify-between gap-3">
             <div className="min-w-0 leading-tight">
               <div className="text-xs text-muted tabular">

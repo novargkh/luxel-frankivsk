@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { availabilityOf } from "@/lib/availability";
 import {
   QuickOrderError,
   articleHints,
@@ -50,9 +51,24 @@ export async function POST(req: Request) {
 
   const products = await prisma.product.findMany({
     where: { isActive: true },
-    select: { id: true, name: true, price: true, stock: true, images: { select: { url: true }, take: 1 } },
+    select: {
+      id: true,
+      name: true,
+      price: true,
+      stock: true,
+      boxQty: true,
+      stockOverride: true,
+      images: { select: { url: true }, take: 1 },
+    },
   });
-  const index = buildIndex(products);
+  // The matcher only uses stock to say "немає в наявності"; feed it the
+  // effective status (admin override included) as 0 / at least 1.
+  const index = buildIndex(
+    products.map(({ boxQty, stockOverride, ...p }) => ({
+      ...p,
+      stock: availabilityOf({ stock: p.stock, boxQty, stockOverride }) === "out" ? 0 : Math.max(1, p.stock),
+    }))
+  );
 
   let lines: ParsedLine[];
   try {

@@ -30,6 +30,7 @@ type OrderItem = {
     name: string;
     price?: number;
     stock?: number;
+    availability?: "in" | "low" | "out";
     isActive?: boolean;
     images?: { id: string; url: string }[];
   };
@@ -96,6 +97,7 @@ function plural(n: number, one: string, few: string, many: string) {
 function canReorder(item: OrderItem) {
   const p = item.product;
   if (p.isActive === false) return false;
+  if (p.availability) return p.availability !== "out";
   if (typeof p.stock === "number" && p.stock <= 0) return false;
   return true;
 }
@@ -164,11 +166,10 @@ export default function OrdersPage() {
   }
 
   // Adds the item's original quantity on top of whatever is already in the
-  // cart, never exceeding the current stock.
+  // cart (no stock cap: any quantity can be ordered).
   function addToCart(item: OrderItem, current: Record<string, number>) {
     const have = current[item.product.id] ?? 0;
-    const stock = typeof item.product.stock === "number" ? item.product.stock : Infinity;
-    const next = Math.min(stock, have + item.quantity);
+    const next = have + item.quantity;
     setQty(item.product.id, next);
     return { ...current, [item.product.id]: next };
   }
@@ -768,7 +769,7 @@ export default function OrdersPage() {
         <div
           role="status"
           aria-live="polite"
-          className="no-print fixed inset-x-3 z-30 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none"
+          className="vv-fixed no-print fixed inset-x-3 z-30 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none"
         >
           <div className="reveal glass glass-strong pointer-events-auto mx-auto max-w-lg rounded-full pl-5 pr-1.5 py-1.5 flex items-center justify-between gap-3">
             <span className="flex items-center gap-2 min-w-0 text-sm text-ink">

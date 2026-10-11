@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { normalizeCategory } from "@/lib/categorize";
 import { prisma } from "@/lib/prisma";
+import { isAvailability } from "@/lib/availability";
 
 export async function PATCH(
   req: Request,
@@ -28,6 +29,7 @@ export async function PATCH(
     images,
     article,
     basId,
+    stockOverride,
   } = body as {
     name?: string;
     description?: string;
@@ -41,6 +43,7 @@ export async function PATCH(
     images?: string[];
     article?: string;
     basId?: string;
+    stockOverride?: string | null;
   };
 
   const data: Record<string, unknown> = {};
@@ -48,6 +51,15 @@ export async function PATCH(
   if (description !== undefined) data.description = description;
   if (price !== undefined) data.price = Number(price);
   if (stock !== undefined) data.stock = Number(stock);
+  // Manual availability for today ("in" | "low" | "out"); null goes back to
+  // the automatic status. The daily stock check clears it again.
+  if (stockOverride !== undefined) {
+    if (stockOverride !== null && !isAvailability(stockOverride)) {
+      return NextResponse.json({ error: "Некоректний статус" }, { status: 400 });
+    }
+    data.stockOverride = stockOverride;
+    data.stockOverrideAt = stockOverride ? new Date() : null;
+  }
   if (category !== undefined) data.category = category ? normalizeCategory(category) : null;
   if (videoUrl !== undefined) data.videoUrl = videoUrl;
   if (isPromo !== undefined) data.isPromo = Boolean(isPromo);

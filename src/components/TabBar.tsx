@@ -34,7 +34,7 @@ export default function TabBar() {
   return (
     <nav
       aria-label="Нижнє меню"
-      className="md:hidden no-print fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pointer-events-none"
+      className="vv-fixed md:hidden no-print fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),12px)] pointer-events-none"
     >
       <div className="glass pointer-events-auto mx-auto max-w-md h-16 rounded-full p-1.5">
         <div className="relative grid grid-cols-5 h-full">

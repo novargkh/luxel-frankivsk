@@ -16,7 +16,10 @@ export default auth((req) => {
     PUBLIC_PATHS.includes(pathname) ||
     pathname.startsWith("/api/auth") ||
     pathname === "/1c_exchange.php" ||
-    pathname.startsWith("/api/1c-exchange");
+    pathname.startsWith("/api/1c-exchange") ||
+    // Vercel Cron jobs: no session, checked inside the route (CRON_SECRET /
+    // Vercel's cron user agent).
+    pathname.startsWith("/api/cron/");
 
   if (isPublic) {
     return NextResponse.next();

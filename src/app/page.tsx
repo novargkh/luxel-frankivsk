@@ -23,6 +23,7 @@ import {
   type ProductAttributes,
 } from "@/lib/similarity";
 import { getCategoryTree, normalizeCategory } from "@/lib/categorize";
+import { AVAILABILITY_LABEL, autoAvailability, type Availability } from "@/lib/availability";
 
 type ProductImage = { id: string; url: string };
 type Product = {
@@ -31,6 +32,7 @@ type Product = {
   description: string | null;
   price: number;
   stock: number;
+  availability?: Availability;
   category: string | null;
   videoUrl: string | null;
   isPromo: boolean;
@@ -45,16 +47,31 @@ type Product = {
 type Shop = { id: string; name: string; address: string };
 
 const UNCATEGORIZED = "Інше";
+// Effective availability sent by /api/products (falls back to the stock
+// number for responses from before the field existed).
+function avail(p: { stock: number; boxQty?: number | null; availability?: Availability }): Availability {
+  return p.availability ?? autoAvailability(p.stock, p.boxQty);
+}
+
 const CATEGORY_TREE = getCategoryTree();
 
-function StockBadge({ stock }: { stock: number }) {
-  const inStock = stock > 0;
+// Clients only see the state, not the warehouse count: "В наявності",
+// "Закінчується" or "Немає в наявності" — the system status from the daily
+// luxel.ua check, or the admin's manual status for today (see
+// src/lib/availability.ts). The API sends the effective one.
+function StockBadge({ state }: { state: Availability }) {
   return (
-    <span className="inline-flex items-center gap-1.5 text-[13px] text-muted whitespace-nowrap">
+    <span
+      className={`inline-flex items-center gap-1.5 text-[13px] whitespace-nowrap ${
+        state === "low" ? "text-amber-700" : "text-muted"
+      }`}
+    >
       <span
-        className={`inline-block w-1.5 h-1.5 rounded-full ${inStock ? "bg-emerald-500" : "bg-black/20"}`}
+        className={`inline-block w-1.5 h-1.5 rounded-full ${
+          state === "in" ? "bg-emerald-500" : state === "low" ? "bg-amber-500" : "bg-black/20"
+        }`}
       />
-      {inStock ? "В наявності" : "Немає в наявності"}
+      {AVAILABILITY_LABEL[state]}
     </span>
   );
 }
@@ -374,7 +391,7 @@ export default function CatalogPage() {
         if (!haystack.includes(q)) return false;
       }
       if (promoOnly && !p.isPromo) return false;
-      if (inStockOnly && p.stock <= 0) return false;
+      if (inStockOnly && avail(p) === "out") return false;
       // Attribute filters are namespaced per category ("category|attrKey")
       // since each expanded tree branch has its own independent set —
       // only the filters for THIS product's own category ever apply to it.
@@ -962,7 +979,7 @@ export default function CatalogPage() {
 
       {/* Floating mini-cart island */}
       {cartCount > 0 && (
-        <div className="no-print fixed bottom-[calc(max(env(safe-area-inset-bottom),12px)+76px)] md:bottom-6 inset-x-3 z-10 pointer-events-none">
+        <div className="vv-fixed no-print fixed bottom-[calc(max(env(safe-area-inset-bottom),12px)+76px)] md:bottom-6 inset-x-3 z-10 pointer-events-none">
           <div
             onPointerMove={trackLight}
             className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-full text-ink pl-6 pr-1.5 py-1.5 flex items-center justify-between gap-3"
@@ -1124,20 +1141,22 @@ function PillSelect({
   );
 }
 
-// [-] 12 [+] pill. QtyInput keeps its own typing/clamping behaviour; the
-// buttons just step by one.
+// [-] 12 [+] pill. QtyInput keeps its own typing behaviour; the buttons just
+// step by one. Quantity is not capped by stock (owner's decision): any
+// amount can be ordered as long as the product is in stock at all.
+const MAX_ORDER_QTY = 99999;
 function Stepper({
   qty,
-  stock,
+  available,
   onQty,
   large,
 }: {
   qty: number;
-  stock: number;
+  available: boolean;
   onQty: (q: number) => void;
   large?: boolean;
 }) {
-  const disabled = stock <= 0;
+  const disabled = !available;
   const btn = `${large ? "w-12 h-12" : "w-10 h-10"} shrink-0 inline-flex items-center justify-center rounded-full text-ink transition-all duration-300 ease-fluid disabled:opacity-30 disabled:cursor-not-allowed enabled:hover:bg-ink/[0.06] enabled:active:scale-90`;
   return (
     <div
@@ -1156,7 +1175,7 @@ function Stepper({
       </button>
       <QtyInput
         value={qty}
-        max={stock}
+        max={MAX_ORDER_QTY}
         disabled={disabled}
         onChange={onQty}
         className="w-10 h-8 bg-transparent text-center text-base font-semibold tabular text-ink focus:outline-none disabled:text-muted"
@@ -1164,7 +1183,7 @@ function Stepper({
       <button
         type="button"
         aria-label="Більше"
-        disabled={disabled || qty >= stock}
+        disabled={disabled || qty >= MAX_ORDER_QTY}
         onClick={() => onQty(qty + 1)}
         className={btn}
       >
@@ -1195,7 +1214,7 @@ function ProductRow({
   onQty: (q: number) => void;
   onOpen: () => void;
 }) {
-  const stepper = <Stepper qty={qty} stock={product.stock} onQty={onQty} />;
+  const stepper = <Stepper qty={qty} available={avail(product) !== "out"} onQty={onQty} />;
 
   return (
     <div
@@ -1249,7 +1268,7 @@ function ProductRow({
         </button>
 
         <div className="hidden sm:flex w-36 shrink-0 justify-end">
-          <StockBadge stock={product.stock} />
+          <StockBadge state={avail(product)} />
         </div>
 
         <div className="hidden sm:block text-[17px] font-semibold tracking-[-0.02em] tabular text-ink w-28 shrink-0 text-right">
@@ -1267,7 +1286,7 @@ function ProductRow({
           <span className="text-lg font-semibold tracking-[-0.02em] tabular text-ink leading-none">
             {product.price.toLocaleString("uk-UA")} ₴
           </span>
-          <StockBadge stock={product.stock} />
+          <StockBadge state={avail(product)} />
           <PackagingInfo
             packQty={product.packQty}
             boxQty={product.boxQty}
@@ -1368,14 +1387,14 @@ function QuickViewModal({
                 {product.price.toLocaleString("uk-UA")} ₴
               </div>
               <div className="flex items-center flex-wrap gap-x-4 gap-y-1 mb-6">
-                <StockBadge stock={product.stock} />
+                <StockBadge state={avail(product)} />
                 <PackagingInfo packQty={product.packQty} boxQty={product.boxQty} />
               </div>
 
               <div className="flex items-center gap-2 mb-2">
-                <Stepper qty={qty} stock={product.stock} onQty={onQty} large />
+                <Stepper qty={qty} available={avail(product) !== "out"} onQty={onQty} large />
                 <button
-                  disabled={product.stock <= 0}
+                  disabled={avail(product) === "out"}
                   onClick={onAdd}
                   className="group flex-1 min-w-0 h-12 inline-flex items-center justify-between gap-3 whitespace-nowrap rounded-full bg-brand pl-5 pr-1.5 text-white text-[15px] font-semibold hover:bg-brand-dark active:scale-[0.98] transition-all duration-300 ease-fluid disabled:opacity-40 disabled:cursor-not-allowed"
                 >
