@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
 import {
+  ArrowRight,
   ArrowUUpLeft,
   CaretDown,
   Check,
@@ -82,6 +83,8 @@ export default function ReturnsPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<string | null>(null);
+  const reasonRef = useRef<HTMLTextAreaElement>(null);
+  const [reasonFocus, setReasonFocus] = useState(false);
 
   async function load() {
     const [oRes, rRes] = await Promise.all([fetch("/api/orders"), fetch("/api/returns")]);
@@ -116,13 +119,21 @@ export default function ReturnsPage() {
   const pickedEntries = Object.entries(picked).filter(([, n]) => n > 0);
   const pickedUnits = pickedEntries.reduce((s, [, n]) => s + n, 0);
 
-  function toggleLine(item: OrderItem) {
+  function toggleLine(item: OrderItem, orderId?: string) {
+    // Keep the order expanded once something in it is picked, so the choice
+    // stays visible after the search is cleared to look for the next item.
+    if (orderId && !picked[item.id]) setOpen((prev) => new Set(prev).add(orderId));
     setPicked((prev) => {
       const next = { ...prev };
       if (next[item.id]) delete next[item.id];
       else next[item.id] = left(item);
       return next;
     });
+  }
+
+  function goToReason() {
+    reasonRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    setTimeout(() => reasonRef.current?.focus({ preventScroll: true }), 350);
   }
 
   function setLineQty(item: OrderItem, n: number) {
@@ -203,7 +214,10 @@ export default function ReturnsPage() {
                 </div>
               )}
 
-              <h2 className="text-[15px] font-semibold text-ink mb-3">1. Позиції для повернення</h2>
+              <h2 className="text-[15px] font-semibold text-ink">1. Позиції для повернення</h2>
+              <p className="mt-1 mb-3 text-sm text-muted">
+                Позначте всі товари, які повертаєте. Можна обрати кілька позицій, навіть з різних замовлень.
+              </p>
               <div className="relative mb-3">
                 <MagnifyingGlass
                   size={18}
@@ -288,7 +302,7 @@ export default function ReturnsPage() {
                                   >
                                     <button
                                       type="button"
-                                      onClick={() => toggleLine(l)}
+                                      onClick={() => toggleLine(l, order.id)}
                                       aria-pressed={on}
                                       aria-label={`${on ? "Прибрати" : "Обрати"}: ${l.product.name}`}
                                       className={`w-6 h-6 shrink-0 rounded-lg inline-flex items-center justify-center transition-all duration-300 ease-fluid active:scale-90 ${
@@ -297,7 +311,7 @@ export default function ReturnsPage() {
                                     >
                                       {on && <Check size={14} weight="bold" className="pop" />}
                                     </button>
-                                    <button type="button" onClick={() => toggleLine(l)} className="min-w-0 flex-1 text-left">
+                                    <button type="button" onClick={() => toggleLine(l, order.id)} className="min-w-0 flex-1 text-left">
                                       <span className="block text-[14px] leading-snug text-ink line-clamp-2">
                                         {l.product.name}
                                       </span>
@@ -350,6 +364,7 @@ export default function ReturnsPage() {
                     Обрано: {pickedEntries.length} {plural(pickedEntries.length, "позиція", "позиції", "позицій")},{" "}
                     {pickedUnits} шт
                   </p>
+                  <p className="px-1 text-xs text-muted">Щоб додати ще, знайдіть товар вище і поставте позначку.</p>
                   <ul className="mt-2 flex flex-wrap gap-1.5">
                     {pickedEntries.map(([id, n]) => {
                       const line = allLines.get(id);
@@ -378,8 +393,11 @@ export default function ReturnsPage() {
 
               <h2 className="text-[15px] font-semibold text-ink mt-6 mb-2">2. Причина повернення</h2>
               <textarea
+                ref={reasonRef}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
+                onFocus={() => setReasonFocus(true)}
+                onBlur={() => setReasonFocus(false)}
                 rows={3}
                 placeholder="Наприклад: брак, не працює після встановлення; помилка в замовленні"
                 aria-label="Причина повернення"
@@ -401,6 +419,32 @@ export default function ReturnsPage() {
               </button>
             </div>
           </section>
+        )}
+
+        {/* Floating summary: shows the return keeps collecting positions and
+            leads on to the reason / sending. */}
+        {!isAdmin && pickedEntries.length > 0 && !reasonFocus && (
+          <div className="no-print fixed inset-x-3 z-20 bottom-[calc(max(env(safe-area-inset-bottom),12px)+80px)] md:bottom-6 pointer-events-none">
+            <div className="reveal glass glass-strong pointer-events-auto mx-auto max-w-xl rounded-[1.75rem] pl-5 pr-1.5 py-1.5 flex items-center justify-between gap-3">
+              <div className="min-w-0 leading-tight">
+                <div className="text-xs text-muted">Можна додати ще</div>
+                <div key={pickedUnits} className="pop text-[15px] font-semibold tracking-[-0.01em] tabular text-ink">
+                  {pickedEntries.length} {plural(pickedEntries.length, "позиція", "позиції", "позицій")}, {pickedUnits} шт
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={reason.trim().length >= 3 ? submit : goToReason}
+                disabled={sending}
+                className="group h-12 inline-flex items-center gap-3 rounded-full bg-ink pl-5 pr-1.5 text-sm font-semibold text-white whitespace-nowrap disabled:opacity-40 active:scale-[0.98] transition-transform duration-300 ease-fluid"
+              >
+                {reason.trim().length >= 3 ? (sending ? "Надсилаю..." : "Надіслати") : "Далі: причина"}
+                <span className="w-9 h-9 rounded-full bg-white/15 inline-flex items-center justify-center transition-transform duration-500 ease-fluid group-hover:translate-x-0.5">
+                  <ArrowRight size={16} weight="bold" />
+                </span>
+              </button>
+            </div>
+          </div>
         )}
 
         <section>

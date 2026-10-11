@@ -10,6 +10,7 @@ import { CaretDown, CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from 
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
+import Contacts from "@/components/Contacts";
 import { PromoCard, usePromoWallet } from "@/components/PromoWallet";
 
 const CLIENT_LINKS = [
@@ -265,6 +266,7 @@ function NavbarInner({ session }: { session: Session }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          <Contacts />
           <Inbox userKey={userKey} />
           <Link
             href="/cart"
