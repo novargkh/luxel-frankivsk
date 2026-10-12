@@ -4,13 +4,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as XLSX from "xlsx";
-import Navbar from "@/components/Navbar";
 import { parseCsv } from "@/lib/csv";
 
 // Clients are taken from BAS: the admin exports the list of contractors
 // (контрагенти) from BAS to Excel and imports it here. Re-importing the
 // file updates existing clients by their BAS code. Passwords are issued
-// per client on the client's card (/profile?client=<id>), and clients send
+// per client on the client's card (/admin/clients/<id>), and clients send
 // change requests for their data, listed at the top of this page.
 
 type Client = {
@@ -204,7 +203,7 @@ export default function AdminClientsPage() {
       setError(data.error ?? "Не вдалося створити клієнта");
       return;
     }
-    router.push(`/profile?client=${data.id}`);
+    router.push(`/admin/clients/${data.id}`);
   }
 
   async function closeRequest(id: string, status: "DONE" | "REJECTED") {
@@ -220,7 +219,6 @@ export default function AdminClientsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-5xl mx-auto w-full px-4 py-6 flex-1">
         <div className="flex items-center justify-between gap-2 flex-wrap mb-1">
           <h1 className="text-lg font-semibold text-slate-900">Клієнти</h1>
@@ -311,7 +309,7 @@ export default function AdminClientsPage() {
               {openRequests.map((r) => (
                 <li key={r.id} className="bg-white rounded-lg border border-amber-100 p-3 text-sm">
                   <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
-                    <Link href={`/profile?client=${r.user.id}`} className="font-medium text-slate-900 hover:text-brand">
+                    <Link href={`/admin/clients/${r.user.id}`} className="font-medium text-slate-900 hover:text-brand">
                       {r.user.company || r.user.name}
                     </Link>
                     <span className="text-xs text-slate-500">{new Date(r.createdAt).toLocaleString("uk-UA")}</span>
@@ -324,7 +322,7 @@ export default function AdminClientsPage() {
                       placeholder="Відповідь клієнту (необов'язково)"
                       className="flex-1 min-w-[12rem] border border-slate-200 rounded-lg px-3 py-1.5 text-sm"
                     />
-                    <Link href={`/profile?client=${r.user.id}`} className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">
+                    <Link href={`/admin/clients/${r.user.id}`} className="text-sm border border-slate-300 rounded-lg px-3 py-1.5 hover:bg-slate-50">
                       Змінити дані
                     </Link>
                     <button onClick={() => closeRequest(r.id, "DONE")} className="text-sm bg-emerald-600 text-white rounded-lg px-3 py-1.5 hover:bg-emerald-700">
@@ -375,7 +373,7 @@ export default function AdminClientsPage() {
                 {shown.map((c) => (
                   <tr key={c.id} className={`border-t border-slate-100 ${c.isActive ? "" : "opacity-50"}`}>
                     <td className="px-3 py-2">
-                      <Link href={`/profile?client=${c.id}`} className="font-medium text-slate-900 hover:text-brand">
+                      <Link href={`/admin/clients/${c.id}`} className="font-medium text-slate-900 hover:text-brand">
                         {c.company || c.name}
                       </Link>
                       {c.company && c.name !== c.company && <div className="text-xs text-slate-500">{c.name}</div>}
@@ -399,7 +397,7 @@ export default function AdminClientsPage() {
                       ) : c.hasPassword ? (
                         <span className="text-emerald-600">пароль видано</span>
                       ) : (
-                        <Link href={`/profile?client=${c.id}`} className="text-brand underline underline-offset-2">
+                        <Link href={`/admin/clients/${c.id}`} className="text-brand underline underline-offset-2">
                           видати пароль
                         </Link>
                       )}

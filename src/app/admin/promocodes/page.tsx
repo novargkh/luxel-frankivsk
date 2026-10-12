@@ -15,7 +15,6 @@ import {
   Users,
   UsersThree,
 } from "@phosphor-icons/react";
-import Navbar from "@/components/Navbar";
 import { getCategoryTree } from "@/lib/categorize";
 
 // Promo codes, modelled on OpenCart's coupons: name, code, percent or fixed
@@ -467,7 +466,6 @@ export default function AdminPromoCodesPage() {
 
   return (
     <div className="min-h-[100dvh] flex flex-col">
-      <Navbar />
       <main className="max-w-5xl mx-auto w-full px-4 sm:px-6 pt-8 sm:pt-14 pb-24 flex-1">
         <header className="flex items-end justify-between gap-4 flex-wrap mb-8">
           <div>

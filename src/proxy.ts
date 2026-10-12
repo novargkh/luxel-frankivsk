@@ -36,8 +36,27 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/", req.nextUrl.origin));
   }
 
+  // The admin works only in the admin area: the client pages (catalog,
+  // cart, quick order, own orders...) are not for placing orders as admin.
+  // Old links land on the matching admin page.
+  if (role === "ADMIN" && !pathname.startsWith("/admin") && !pathname.startsWith("/api")) {
+    const to = adminPathFor(pathname, req.nextUrl.searchParams);
+    if (to) return NextResponse.redirect(new URL(to, req.nextUrl.origin));
+  }
+
   return NextResponse.next();
 });
+
+function adminPathFor(pathname: string, params: URLSearchParams): string | null {
+  if (pathname === "/orders") return "/admin/orders";
+  if (pathname === "/returns") return "/admin/returns";
+  if (pathname === "/profile") {
+    const client = params.get("client");
+    return client ? `/admin/clients/${encodeURIComponent(client)}` : "/admin";
+  }
+  if (["/", "/cart", "/quick-order", "/promotions"].includes(pathname)) return "/admin";
+  return null;
+}
 
 export const config = {
   matcher: [

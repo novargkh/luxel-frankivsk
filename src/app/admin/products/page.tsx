@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Navbar from "@/components/Navbar";
 import { parseCsv } from "@/lib/csv";
 import * as XLSX from "xlsx";
 import { AVAILABILITY_LABEL, type Availability } from "@/lib/availability";
@@ -499,7 +498,6 @@ export default function AdminProductsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h1 className="text-lg font-semibold text-slate-900">Товари</h1>

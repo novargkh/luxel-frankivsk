@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Navbar from "@/components/Navbar";
 
 type Announcement = { id: string; title: string; body: string; createdAt: string };
 
@@ -39,7 +38,6 @@ export default function AdminAnnouncementsPage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-3xl mx-auto w-full px-4 py-6 flex-1">
         <h1 className="text-lg font-semibold text-slate-900 mb-4">
           Сповіщення для клієнтів

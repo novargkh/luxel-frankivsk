@@ -96,6 +96,7 @@ export default function QuickOrderPage() {
   const dictRef = useRef<Dictation | null>(null);
   const textBase = useRef("");
   const cancelled = useRef(false);
+  const textArea = useRef<HTMLTextAreaElement | null>(null);
   // What the AI heard in a recording, shown so the person can check it.
   const [heard, setHeard] = useState<string | null>(null);
   useEffect(() => {
@@ -272,8 +273,15 @@ export default function QuickOrderPage() {
     try {
       recorderRef.current = await startRecording();
     } catch (e) {
-      setError(micErrorText(e));
+      // The site can't use the microphone: open the text box instead. The
+      // keyboard's own dictation (🎤 on the iPhone / Android keyboard)
+      // needs no permission, and the text is read the same way.
+      setError(
+        `${micErrorText(e)} Поки що надиктуйте через клавіатуру: торкніться поля нижче і натисніть 🎤 на клавіатурі, потім «Розібрати».`
+      );
       setRec("idle");
+      setShowText(true);
+      setTimeout(() => textArea.current?.focus(), 50);
       return false;
     }
     setSecs(0);
@@ -475,10 +483,11 @@ export default function QuickOrderPage() {
             {showText && (
               <div className="rise mt-4">
                 <textarea
+                  ref={textArea}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   rows={4}
-                  placeholder={"Наприклад:\n9601 - 20 шт\nJAZZ 9707 графіт 10\nлампа HPF 55W - 5"}
+                  placeholder={"Можна надиктувати: 🎤 на клавіатурі.\nНаприклад:\n9601 - 20 шт\nJAZZ 9707 графіт 10\nлампа HPF 55W - 5"}
                   aria-label="Текст замовлення"
                   className="w-full rounded-2xl bg-white/85 ring-1 ring-white px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none focus:bg-white"
                 />

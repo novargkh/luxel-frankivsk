@@ -2,7 +2,6 @@
 
 import { use, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
 import { buildGoogleMapsRouteUrl, routeLegs } from "@/lib/geo";
 
 type StopOrder = {
@@ -117,7 +116,6 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
   if (loading || !route) {
     return (
       <div className="min-h-screen flex flex-col">
-        <Navbar />
         <main className="max-w-4xl mx-auto w-full px-4 py-6 flex-1">
           <p className="text-sm text-slate-500">Завантаження...</p>
         </main>
@@ -127,7 +125,6 @@ export default function RouteDetailPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-4xl mx-auto w-full px-4 py-6 flex-1">
         <div className="no-print">
           <div className="flex items-center justify-between mb-1 flex-wrap gap-2">

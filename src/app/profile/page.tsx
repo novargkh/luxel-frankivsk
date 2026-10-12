@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 
@@ -77,7 +77,10 @@ export default function ProfilePage() {
 function ProfileInner() {
   const { data: session } = useSession();
   const isAdmin = (session?.user as { role?: string } | undefined)?.role === "ADMIN";
-  const clientId = useSearchParams().get("client");
+  // Admin opens a client at /admin/clients/<id> (the old ?client=<id>
+  // link still works).
+  const routeParams = useParams<{ id?: string }>();
+  const clientId = useSearchParams().get("client") ?? routeParams?.id ?? null;
   const adminMode = isAdmin && !!clientId;
 
   const [profile, setProfile] = useState<Profile | null>(null);

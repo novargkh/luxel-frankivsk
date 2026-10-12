@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import { CaretDown, CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
+import { CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
@@ -20,17 +20,6 @@ const CLIENT_LINKS = [
   { href: "/returns", label: "Повернення" },
 ];
 
-const ADMIN_LINKS = [
-  { href: "/admin", label: "Огляд" },
-  { href: "/admin/products", label: "Товари" },
-  { href: "/admin/clients", label: "Клієнти" },
-  { href: "/admin/routes", label: "Маршрути" },
-  { href: "/admin/coverage", label: "Покриття" },
-  { href: "/admin/promocodes", label: "Промокоди" },
-  { href: "/admin/announcements", label: "Сповіщення" },
-  { href: "/returns", label: "Повернення" },
-];
-
 // Moves the glass highlight to follow the pointer (CSS vars, no re-render).
 function trackLight(e: PointerEvent<HTMLElement>) {
   const el = e.currentTarget;
@@ -39,9 +28,12 @@ function trackLight(e: PointerEvent<HTMLElement>) {
   el.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
 }
 
+// The client navigation. The admin area has its own shell
+// (src/components/admin/AdminShell.tsx), so nothing here links to it.
 export default function Navbar() {
   const { data: session } = useSession();
-  if (!session?.user) return null;
+  const pathname = usePathname();
+  if (!session?.user || pathname.startsWith("/admin")) return null;
   return <NavbarInner session={session} />;
 }
 
@@ -61,9 +53,7 @@ function NavbarInner({ session }: { session: Session }) {
   // Menus are "open for" a specific path, so navigating anywhere else
   // closes them automatically without an effect.
   const [menuFor, setMenuFor] = useState<string | null>(null);
-  const [adminFor, setAdminFor] = useState<string | null>(null);
   const menuOpen = menuFor === pathname;
-  const adminOpen = adminFor === pathname;
   // Promo ids that were new when the menu was opened (to label them).
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const menuRef = useRef<HTMLDivElement>(null);
@@ -102,7 +92,6 @@ function NavbarInner({ session }: { session: Session }) {
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
-  const adminActive = pathname.startsWith("/admin");
   const cartActive = pathname === "/cart";
   const showPromos = !isAdmin;
 
@@ -129,27 +118,6 @@ function NavbarInner({ session }: { session: Session }) {
                 <CaretRight size={14} weight="bold" className="ml-auto text-muted" />
               </Link>
             </div>
-
-            {isAdmin && (
-              <div className="mt-8">
-                <p className="text-sm font-medium text-muted mb-2">Адміністрування</p>
-                <div className="grid grid-cols-2 gap-x-4">
-                  {ADMIN_LINKS.map((l) => (
-                    <Link
-                      key={l.href}
-                      href={l.href}
-                      className={`py-2 text-[17px] md:text-[15px] ${
-                        (l.href === "/admin" ? pathname === "/admin" : isActive(l.href))
-                          ? "text-brand font-medium"
-                          : "text-ink/80"
-                      }`}
-                    >
-                      {l.label}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
 
             {showPromos && (
               <section className="mt-8" aria-label="Доступні промокоди">
@@ -184,17 +152,6 @@ function NavbarInner({ session }: { session: Session }) {
         </div>
       )}
 
-      {/* Click-away layer for the admin dropdown */}
-      {adminOpen && (
-        <button
-          type="button"
-          aria-hidden="true"
-          tabIndex={-1}
-          className="fixed inset-0 cursor-default"
-          onClick={() => setAdminFor(null)}
-        />
-      )}
-
       <div
         onPointerMove={trackLight}
         className="glass mx-auto max-w-6xl h-14 sm:h-16 flex items-center gap-2 rounded-full pl-5 sm:pl-6 pr-2"
@@ -219,50 +176,6 @@ function NavbarInner({ session }: { session: Session }) {
             </Link>
           ))}
 
-          {isAdmin && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setAdminFor(adminOpen ? null : pathname)}
-                aria-expanded={adminOpen}
-                aria-haspopup="menu"
-                className={`h-10 inline-flex items-center gap-1.5 rounded-full px-3 lg:px-4 text-[14px] font-medium whitespace-nowrap transition-colors duration-300 ease-fluid ${
-                  adminActive || adminOpen
-                    ? "bg-white/80 text-ink shadow-[0_1px_2px_rgba(16,17,20,0.06),inset_0_1px_0_rgba(255,255,255,0.9)]"
-                    : "text-ink/60 hover:text-ink hover:bg-white/50"
-                }`}
-              >
-                Адмінка
-                <CaretDown
-                  size={14}
-                  weight="bold"
-                  className={`transition-transform duration-500 ease-fluid ${adminOpen ? "rotate-180" : ""}`}
-                />
-              </button>
-
-              {adminOpen && (
-                <div className="reveal absolute left-0 top-full mt-3 w-60 rounded-[1.5rem] glass glass-strong bg-white/[0.97] p-1.5">
-                  <div role="menu">
-                    {ADMIN_LINKS.map((l) => {
-                      const active = l.href === "/admin" ? pathname === "/admin" : isActive(l.href);
-                      return (
-                        <Link
-                          key={l.href}
-                          href={l.href}
-                          role="menuitem"
-                          className={`flex items-center h-10 rounded-full px-4 text-[14px] transition-colors duration-300 ease-fluid ${
-                            active ? "bg-white/90 text-ink font-medium" : "text-ink/75 hover:bg-white/60 hover:text-ink"
-                          }`}
-                        >
-                          {l.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">

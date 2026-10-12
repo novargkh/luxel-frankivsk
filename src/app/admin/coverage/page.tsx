@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import Navbar from "@/components/Navbar";
 import type { CoveragePoint } from "@/components/CoverageMap";
 
 const CoverageMap = dynamic(() => import("@/components/CoverageMap"), {
@@ -105,7 +104,6 @@ export default function CoveragePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-5xl mx-auto w-full px-4 py-6 flex-1">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <h1 className="text-lg font-semibold text-slate-900">Карта покриття</h1>

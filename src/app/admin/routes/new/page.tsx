@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Navbar from "@/components/Navbar";
 
 type AvailableOrder = {
   id: string;
@@ -102,7 +101,6 @@ export default function NewRoutePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Navbar />
       <main className="max-w-4xl mx-auto w-full px-4 py-6 flex-1">
         <h1 className="text-lg font-semibold text-slate-900 mb-4">Новий маршрут</h1>
 
