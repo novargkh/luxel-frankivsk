@@ -46,6 +46,10 @@ const money = (n: number) => `${n.toLocaleString("uk-UA")} ₴`;
 let seq = 0;
 const nextKey = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
 const MAX_RECORD_SEC = 90;
+// Voice goes as an audio recording to the AI (the first, steadier
+// algorithm). The phone's own live dictation (src/lib/speech.ts) misheard
+// codes and broke off on pauses on iPhone; set to true to bring it back.
+const USE_LIVE_DICTATION = false;
 const MAX_PHOTOS = 10;
 
 export default function QuickOrderPage() {
@@ -73,7 +77,7 @@ export default function QuickOrderPage() {
   const [heard, setHeard] = useState<string | null>(null);
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setLive(liveDictationSupported());
+    setLive(USE_LIVE_DICTATION && liveDictationSupported());
     ensureCatalog();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -430,10 +434,12 @@ export default function QuickOrderPage() {
 
             <p className="mt-3 text-center text-xs text-muted">
               {recording
-                ? "AI слухає: називайте артикул і кількість. Натисніть «AI» ще раз — список з'явиться одразу."
+                ? "Йде запис: називайте артикул і кількість. Натисніть «AI» ще раз, щоб відправити."
                 : live
                   ? "Голос: натисніть «AI» і диктуйте, наприклад «9601 двадцять штук». Натисніть «AI» ще раз, щоб завершити."
-                  : "Голос: натисніть «AI», щоб увімкнути, і ще раз, щоб вимкнути."}
+                  : rec === "processing"
+                    ? "AI розбирає запис, кілька секунд..."
+                    : "Голос: натисніть «AI», скажіть, наприклад, «9601 двадцять штук», і натисніть ще раз."}
             </p>
             {recording && (
               <div className="mt-2 text-center">

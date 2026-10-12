@@ -339,8 +339,9 @@ export const TEXT_MODEL =
   process.env.QUICK_ORDER_MODEL || "google/gemini-3.5-flash-lite";
 export const VISION_MODEL =
   process.env.QUICK_ORDER_VISION_MODEL || "google/gemini-3.8-flash";
-// Speech needs the stronger model: the light one mishears numbers and codes.
-export const AUDIO_MODEL = process.env.QUICK_ORDER_AUDIO_MODEL || VISION_MODEL;
+// Same model as in the first version of quick order: fast, and it read
+// dictated orders well enough. QUICK_ORDER_AUDIO_MODEL overrides it.
+export const AUDIO_MODEL = process.env.QUICK_ORDER_AUDIO_MODEL || TEXT_MODEL;
 
 function systemPrompt(hints: string, vocab: string, audio: boolean) {
   return `Ти допомагаєш оптовому клієнту компанії LUXEL (електротовари: лампи, світильники, розетки, вимикачі, подовжувачі) скласти замовлення.
