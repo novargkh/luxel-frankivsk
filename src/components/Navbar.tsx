@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import { CaretDown, CaretRight, Microphone, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
@@ -266,21 +266,29 @@ function NavbarInner({ session }: { session: Session }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          {/* Quick order by voice / photo / text */}
+          {/* Quick order with AI: voice / photo / text */}
+          {/* Pressed = on the quick-order page; pressing again goes back to
+              the catalog. */}
           <Link
-            href="/quick-order"
-            aria-label="Швидке замовлення: голос або фото"
-            title="Швидке замовлення: голос або фото"
-            className={`relative h-10 sm:h-11 min-w-10 sm:min-w-11 shrink-0 inline-flex items-center justify-center gap-2 rounded-full xl:pl-1.5 xl:pr-4 transition-colors duration-300 ease-fluid ${
-              pathname === "/quick-order" ? "bg-brand text-white" : "bg-white/60 ring-1 ring-white/70 text-brand hover:bg-white/90"
+            href={pathname === "/quick-order" ? "/" : "/quick-order"}
+            aria-pressed={pathname === "/quick-order"}
+            aria-label="Швидке замовлення з AI: голос, фото, текст"
+            title="Швидке замовлення з AI: голос, фото, текст"
+            aria-current={pathname === "/quick-order" ? "page" : undefined}
+            className={`relative h-10 sm:h-11 min-w-10 sm:min-w-11 shrink-0 inline-flex items-center justify-center gap-2 rounded-full xl:pl-1.5 xl:pr-4 transition-all duration-300 ease-fluid active:scale-95 ${
+              pathname === "/quick-order"
+                ? "bg-ink text-white"
+                : "bg-white/60 ring-1 ring-white/70 text-ink hover:bg-white/90"
             }`}
           >
-            <span className={`inline-flex items-center justify-center rounded-full xl:w-8 xl:h-8 ${pathname === "/quick-order" ? "" : "xl:bg-brand xl:text-white"}`}>
-              <Microphone size={18} weight="bold" />
+            <span
+              className={`inline-flex items-center justify-center w-7 h-7 xl:w-8 xl:h-8 rounded-full text-[11px] font-bold tracking-[0.02em] ${
+                pathname === "/quick-order" ? "bg-white text-ink" : "bg-ink text-white"
+              }`}
+            >
+              AI
             </span>
-            <span className={`hidden xl:inline text-[14px] font-medium whitespace-nowrap ${pathname === "/quick-order" ? "" : "text-ink"}`}>
-              Швидке замовлення
-            </span>
+            <span className="hidden xl:inline text-[14px] font-medium whitespace-nowrap">Швидке замовлення</span>
           </Link>
           <Contacts />
           <Inbox userKey={userKey} />

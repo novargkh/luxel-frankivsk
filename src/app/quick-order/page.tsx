@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -9,7 +9,7 @@ import {
   CircleNotch,
   ImageSquare,
   Images,
-  LockSimple,
+  Stop,
   MagnifyingGlass,
   Microphone,
   Minus,
@@ -26,6 +26,7 @@ import { useCart } from "@/lib/cart";
 import { blobToWavBase64, compressImage, startRecording, type Recorder } from "@/lib/media";
 import { textMatches } from "@/lib/itemSearch";
 import { liveDictationSupported, startDictation, type Dictation } from "@/lib/speech";
+import { articlesFromNames, highlightOrder } from "@/lib/orderHighlight";
 
 type Candidate = { id: string; name: string; price: number; stock: number; image: string | null; score: number };
 type Line = {
@@ -47,6 +48,7 @@ const money = (n: number) => `${n.toLocaleString("uk-UA")} ₴`;
 let seq = 0;
 const nextKey = () => `l${Date.now().toString(36)}${(seq++).toString(36)}`;
 const MAX_RECORD_SEC = 90;
+const MAX_PHOTOS = 10;
 
 export default function QuickOrderPage() {
   const router = useRouter();
@@ -73,8 +75,9 @@ export default function QuickOrderPage() {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setLive(liveDictationSupported());
+    ensureCatalog();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const pressStart = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Catalog for manual search in unresolved lines (loaded on demand).
@@ -143,7 +146,14 @@ export default function QuickOrderPage() {
 
   async function onPhotos(files: FileList | null) {
     if (!files) return;
-    for (const file of Array.from(files)) {
+    const free = MAX_PHOTOS - shots.length;
+    if (free <= 0) {
+      setError(`Можна до ${MAX_PHOTOS} фото за раз. Натисніть «Очистити фото», щоб додати нові.`);
+      return;
+    }
+    const picked = Array.from(files).slice(0, free);
+    if (files.length > free) setError(`Додано ${free} з ${files.length} фото: максимум ${MAX_PHOTOS}.`);
+    for (const file of picked) {
       const key = nextKey();
       let thumb = "";
       try {
@@ -266,30 +276,25 @@ export default function QuickOrderPage() {
     setRec("idle");
   }
 
-  async function onMicDown(e: React.PointerEvent) {
-    e.preventDefault();
-    if (rec === "locked") {
+  // Tap to start, tap again to stop (a plain toggle: hold-to-talk was
+  // unreliable on phones, where the finger lifting ended the recording).
+  async function toggleMic() {
+    if (rec === "processing") return;
+    if (rec === "locked" || rec === "hold") {
       finish();
       return;
     }
-    if (rec !== "idle") return;
-    pressStart.current = Date.now();
-    setRec("hold");
+    setRec("locked");
     const ok = await begin();
     if (!ok) setRec("idle");
-  }
-
-  function onMicUp() {
-    if (rec !== "hold") return;
-    // Short tap = lock (keep recording hands-free); long press = done.
-    if (Date.now() - pressStart.current < 450) setRec("locked");
-    else finish();
   }
 
   // ── editing ───────────────────────────────────────────────────────
   const update = (key: string, patch: Partial<Line>) =>
     setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
   const removeLine = (key: string) => setLines((prev) => prev.filter((l) => l.key !== key));
+
+  const knownArticles = useMemo(() => articlesFromNames((catalog ?? []).map((p) => p.name)), [catalog]);
 
   const ready = lines.filter((l) => l.chosen);
   const unresolved = lines.length - ready.length;
@@ -362,10 +367,8 @@ export default function QuickOrderPage() {
 
               <button
                 type="button"
-                onPointerDown={onMicDown}
-                onPointerUp={onMicUp}
-                onPointerLeave={() => rec === "hold" && finish()}
-                onContextMenu={(e) => e.preventDefault()}
+                onClick={toggleMic}
+                aria-pressed={recording}
                 disabled={rec === "processing"}
                 aria-label={recording ? "Завершити запис" : "Записати голосом"}
                 className={`relative select-none touch-none flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
@@ -377,25 +380,19 @@ export default function QuickOrderPage() {
                 )}
                 <span
                   className={`w-12 h-12 rounded-full inline-flex items-center justify-center ${
-                    recording ? "bg-white/20" : "bg-brand text-white"
+                    recording ? "bg-white/20" : "bg-ink text-white"
                   }`}
                 >
                   {rec === "processing" ? (
                     <CircleNotch size={22} className="animate-spin" />
-                  ) : rec === "locked" ? (
-                    <LockSimple size={22} weight="fill" />
+                  ) : recording ? (
+                    <Stop size={22} weight="fill" />
                   ) : (
                     <Microphone size={22} weight={recording ? "fill" : "regular"} />
                   )}
                 </span>
                 <span className="text-sm font-medium tabular">
-                  {rec === "hold"
-                    ? `Запис ${secs}с`
-                    : rec === "locked"
-                      ? `${secs}с, натисніть`
-                      : rec === "processing"
-                        ? "Обробка..."
-                        : "Голос"}
+                  {recording ? `Стоп · ${secs}с` : rec === "processing" ? "Обробка..." : "Голос"}
                 </span>
               </button>
 
@@ -416,12 +413,10 @@ export default function QuickOrderPage() {
 
             <p className="mt-3 text-center text-xs text-muted">
               {recording
-                ? rec === "locked"
-                  ? "Говоріть вільно. Натисніть мікрофон ще раз, щоб завершити."
-                  : "Говоріть. Відпустіть, щоб завершити. Короткий дотик залишає запис увімкненим."
+                ? "Говоріть: артикул і кількість. Натисніть «Стоп», щоб завершити."
                 : live
-                  ? "Мікрофон: торкніться і диктуйте, текст з'являтиметься нижче. Перевірте його і натисніть «Розібрати»."
-                  : "Мікрофон: утримуйте під час диктовки або торкніться, щоб диктувати без рук."}
+                  ? "Голос: натисніть і диктуйте, текст з'являтиметься нижче. Перевірте його і натисніть «Розібрати»."
+                  : "Голос: натисніть, щоб почати, і ще раз, щоб завершити."}
             </p>
             {recording && (
               <div className="mt-2 text-center">
@@ -441,6 +436,7 @@ export default function QuickOrderPage() {
                   aria-label="Текст замовлення"
                   className="w-full rounded-2xl bg-white/85 ring-1 ring-white px-4 py-3 text-base text-ink placeholder:text-muted focus:outline-none focus:bg-white"
                 />
+                {text.trim() && <Recognised text={text} known={knownArticles} />}
                 <button
                   type="button"
                   onClick={submitText}
@@ -453,7 +449,35 @@ export default function QuickOrderPage() {
             )}
 
             {shots.length > 0 && (
-              <ul className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+              <div className="mt-4 flex items-center justify-between text-xs text-muted">
+                <span className="tabular">
+                  Фото: {shots.length} з {MAX_PHOTOS}
+                </span>
+                <button type="button" onClick={() => setShots([])} className="underline underline-offset-4 hover:text-ink">
+                  Очистити фото
+                </button>
+              </div>
+            )}
+            {shots.length > 0 && (
+              <ul className="mt-2 flex gap-2 overflow-x-auto no-scrollbar">
+                {shots.length < MAX_PHOTOS && (
+                  <li className="shrink-0">
+                    <label className="w-16 h-16 rounded-xl bg-white/80 ring-1 ring-white flex flex-col items-center justify-center text-ink cursor-pointer active:scale-95 transition-transform">
+                      <Plus size={18} weight="bold" />
+                      <span className="text-[10px] font-medium">ще фото</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="sr-only"
+                        onChange={(e) => {
+                          onPhotos(e.target.files);
+                          e.target.value = "";
+                        }}
+                      />
+                    </label>
+                  </li>
+                )}
                 {shots.map((s) => (
                   <li key={s.key} className="relative shrink-0 w-16 h-16 rounded-xl overflow-hidden bg-paper ring-1 ring-white">
                     {s.thumb ? (
@@ -493,7 +517,25 @@ export default function QuickOrderPage() {
             )}
             {heard && (
               <p className="mt-3 text-sm text-ink/80">
-                <span className="text-muted">Почув: </span>«{heard}»
+                <span className="text-muted">Почув: </span>
+                {highlightOrder(heard, knownArticles).map((sg, i) =>
+                  sg.kind === "plain" ? (
+                    <span key={i}>{sg.text}</span>
+                  ) : (
+                    <mark
+                      key={i}
+                      className={`rounded px-1 font-semibold ${
+                        sg.kind === "qty"
+                          ? "bg-blue-100 text-blue-900"
+                          : sg.known
+                            ? "bg-emerald-100 text-emerald-900"
+                            : "bg-amber-100 text-amber-900"
+                      }`}
+                    >
+                      {sg.text}
+                    </mark>
+                  )
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -804,3 +846,53 @@ function LineCard({
   );
 }
 
+
+// What was understood from the dictated / typed text: articles (green when
+// the code is in the catalog, amber when not) and quantities (blue).
+function Recognised({ text, known }: { text: string; known: Set<string> }) {
+  const segs = highlightOrder(text, known);
+  const arts = segs.filter((x) => x.kind === "article");
+  const qtys = segs.filter((x) => x.kind === "qty");
+  return (
+    <div className="mt-2 rounded-2xl bg-white/70 ring-1 ring-white px-4 py-3">
+      <p className="text-[15px] leading-8 text-ink/80 whitespace-pre-wrap break-words">
+        {segs.map((sg, i) =>
+          sg.kind === "plain" ? (
+            <span key={i}>{sg.text}</span>
+          ) : sg.kind === "article" ? (
+            <mark
+              key={i}
+              className={`rounded-md px-1.5 py-0.5 font-semibold tabular ${
+                sg.known ? "bg-emerald-100 text-emerald-900" : "bg-amber-100 text-amber-900"
+              }`}
+              title={sg.known ? "Артикул є в каталозі" : "Такого артикула немає в каталозі"}
+            >
+              {sg.text}
+            </mark>
+          ) : (
+            <mark key={i} className="rounded-md px-1.5 py-0.5 font-semibold tabular bg-blue-100 text-blue-900" title="Кількість">
+              {sg.text}
+            </mark>
+          )
+        )}
+      </p>
+      <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
+        <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1" />
+          артикул з каталогу
+        </span>
+        <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1" />
+          невідомий код
+        </span>
+        <span>
+          <span className="inline-block w-2 h-2 rounded-full bg-blue-400 mr-1" />
+          кількість
+        </span>
+        <span className="tabular">
+          Знайдено: {arts.length} арт., {qtys.length} к-ть
+        </span>
+      </p>
+    </div>
+  );
+}
