@@ -63,6 +63,9 @@ model User {
   basId        String?  @unique
   // ЄДРПОУ / ІПН from BAS.
   taxCode      String?
+  // Personal discount off the base price (BAS), in percent. The client
+  // never sees it: catalog, cart and orders just show their own price.
+  discountPercent Float @default(0)
   // A blocked client can't log in.
   isActive     Boolean  @default(true)
   role         Role     @default(CLIENT)

@@ -19,6 +19,7 @@ type Row = {
   phone?: string;
   email?: string;
   address?: string;
+  discount?: string;
 };
 
 const s = (v: unknown) => {
@@ -85,8 +86,11 @@ export async function POST(req: Request) {
       phone = null;
     }
 
+    const dRaw = s(r.discount);
+    const dNum = dRaw ? Number(dRaw.replace(",", ".").replace(/[%\s]/g, "")) : NaN;
     const data = {
       company,
+      ...(Number.isFinite(dNum) ? { discountPercent: Math.min(Math.max(Math.abs(dNum), 0), 100) } : {}),
       name: s(r.contactPerson) ?? company,
       ...(code ? { basId: code } : {}),
       ...(taxCode ? { taxCode } : {}),

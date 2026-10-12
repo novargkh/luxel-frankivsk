@@ -70,6 +70,9 @@ export default function AdminProductsPage() {
   const imageInputRef = useRef<HTMLInputElement>(null);
   const videoInputRef = useRef<HTMLInputElement>(null);
   const packagingInputRef = useRef<HTMLInputElement>(null);
+  const pricesInputRef = useRef<HTMLInputElement>(null);
+  const [importingPrices, setImportingPrices] = useState(false);
+  const [pricesMsg, setPricesMsg] = useState<{ type: "ok" | "error"; text: string; details?: string[] } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -259,6 +262,63 @@ export default function AdminProductsPage() {
   // article code. Accepts both CSV and Excel (.xlsx/.xls) — the client's
   // price list comes as either depending on how it was exported, and both
   // just need to resolve to the same "Артикул / упаковка / ящик" columns.
+  // Base prices from a BAS price list (Excel/CSV). The header row is found
+  // automatically (BAS exports start with a title); "Артикул" (or "Код")
+  // and the first "Ціна" column are used. Clients then see this price minus
+  // their personal discount.
+  async function importPrices(file: File) {
+    setImportingPrices(true);
+    setPricesMsg(null);
+    try {
+      let table: string[][];
+      if (/\.xlsx?$/i.test(file.name)) {
+        const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: false }) as unknown[][];
+        table = raw.map((r) => r.map((c) => (c == null ? "" : String(c))));
+      } else {
+        table = parseCsv(await file.text());
+      }
+      const norm = (h: string) => (h ?? "").trim().toLowerCase();
+      const isPrice = (h: string) => /ціна|цена|price/.test(h);
+      const headerIdx = table.slice(0, 20).findIndex((r) => r.some((c) => isPrice(norm(c))) && r.some((c) => /артикул|код/.test(norm(c))));
+      if (headerIdx === -1) {
+        setPricesMsg({ type: "error", text: "Не знайдено рядок заголовків з колонками «Артикул» і «Ціна»" });
+        return;
+      }
+      const headers = table[headerIdx].map(norm);
+      let artCol = headers.findIndex((h) => h.includes("артикул"));
+      if (artCol === -1) artCol = headers.findIndex((h) => /^код/.test(h));
+      const baseCol = headers.findIndex((h) => isPrice(h) && /базов/.test(h));
+      const priceCol = baseCol !== -1 ? baseCol : headers.findIndex(isPrice);
+      const rows = table.slice(headerIdx + 1).map((r) => ({ article: r[artCol] ?? "", price: r[priceCol] ?? "" }));
+      const res = await fetch("/api/admin/import-prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setPricesMsg({ type: "error", text: data.error ?? "Не вдалося імпортувати ціни" });
+        return;
+      }
+      setPricesMsg({
+        type: "ok",
+        text: `Колонка цін: «${table[headerIdx][priceCol]}». Рядків з цінами: ${data.rows}, зіставлено товарів: ${data.matched}, змінено цін: ${data.changed}. Товарів сайту без ціни у файлі: ${data.notInFile}. Артикулів з файлу, яких немає на сайті: ${data.unknownArticles}.`,
+        details: [
+          ...data.changes.map((c: { name: string; from: number; to: number }) => `${c.name}: ${c.from} → ${c.to}`),
+          ...(data.notInFileSample.length ? ["— Немає у файлі: " + data.notInFileSample.join("; ")] : []),
+        ],
+      });
+      load();
+    } catch {
+      setPricesMsg({ type: "error", text: "Не вдалося прочитати файл" });
+    } finally {
+      setImportingPrices(false);
+      if (pricesInputRef.current) pricesInputRef.current.value = "";
+    }
+  }
+
   async function importPackagingCsv(file: File) {
     setImportingPackaging(true);
     setImportPackagingMsg(null);
@@ -443,7 +503,7 @@ export default function AdminProductsPage() {
       <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1">
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h1 className="text-lg font-semibold text-slate-900">Товари</h1>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={syncLuxel}
               disabled={syncing}
@@ -474,6 +534,24 @@ export default function AdminProductsPage() {
               className="bg-white text-brand border border-brand text-sm rounded-lg px-4 py-2 hover:bg-red-50 disabled:opacity-50"
             >
               {syncingSpecs ? "Оновлення..." : "Оновити характеристики"}
+            </button>
+            <input
+              ref={pricesInputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) importPrices(file);
+              }}
+            />
+            <button
+              onClick={() => pricesInputRef.current?.click()}
+              disabled={importingPrices}
+              title="Базові ціни з прайсу BAS (Excel). Кожен клієнт бачить цю ціну мінус свою знижку"
+              className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
+            >
+              {importingPrices ? "Імпорт цін..." : "Імпорт цін з BAS"}
             </button>
             <input
               ref={packagingInputRef}
@@ -576,6 +654,22 @@ export default function AdminProductsPage() {
             </div>
           )}
         </div>
+
+        {pricesMsg && (
+          <div className={`mb-4 text-sm rounded-lg px-3 py-2 ${pricesMsg.type === "ok" ? "bg-emerald-50 text-emerald-800" : "bg-red-50 text-red-600"}`}>
+            <p>{pricesMsg.text}</p>
+            {pricesMsg.details && pricesMsg.details.length > 0 && (
+              <details className="mt-1">
+                <summary className="cursor-pointer text-xs">Деталі</summary>
+                <ul className="mt-1 text-xs space-y-0.5 max-h-60 overflow-y-auto">
+                  {pricesMsg.details.map((d, i) => (
+                    <li key={i}>{d}</li>
+                  ))}
+                </ul>
+              </details>
+            )}
+          </div>
+        )}
 
         {importPackagingMsg && (
           <div

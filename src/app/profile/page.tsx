@@ -25,6 +25,7 @@ type Profile = {
   taxCode?: string | null;
   basId?: string | null;
   isActive?: boolean;
+  discountPercent?: number;
   passwordIssuedAt?: string | null;
 };
 type ChangeRequest = {
@@ -87,6 +88,7 @@ function ProfileInner() {
   const [taxCode, setTaxCode] = useState("");
   const [basId, setBasId] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [discount, setDiscount] = useState("");
   const [issued, setIssued] = useState<{ login: string; password: string } | null>(null);
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [requestText, setRequestText] = useState("");
@@ -158,6 +160,7 @@ function ProfileInner() {
     setTaxCode(p.taxCode ?? "");
     setBasId(p.basId ?? "");
     setIsActive(p.isActive ?? true);
+    setDiscount(p.discountPercent ? String(p.discountPercent) : "");
     setShops(await shopsRes.json());
     if (reqRes?.ok) setRequests(await reqRes.json());
     setLoading(false);
@@ -175,7 +178,7 @@ function ProfileInner() {
     const res = await fetch(`/api/admin/clients/${clientId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company, phone, email, taxCode, basId, isActive }),
+      body: JSON.stringify({ name, company, phone, email, taxCode, basId, isActive, discountPercent: discount || 0 }),
     });
     setSavingProfile(false);
     const data = await res.json().catch(() => ({}));
@@ -338,6 +341,10 @@ function ProfileInner() {
               <label className="block">
                 <span className="block text-xs font-medium text-slate-600 mb-1">Код у BAS</span>
                 <input value={basId} onChange={(e) => setBasId(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" />
+              </label>
+              <label className="block">
+                <span className="block text-xs font-medium text-slate-600 mb-1">Знижка від базової ціни, % (клієнт її не бачить)</span>
+                <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" placeholder="0" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </label>
             </div>
             <label className="flex items-center gap-2 text-sm text-slate-700 mb-4">

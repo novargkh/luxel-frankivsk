@@ -22,6 +22,7 @@ type Client = {
   basId: string | null;
   taxCode: string | null;
   isActive: boolean;
+  discountPercent: number;
   hasPassword: boolean;
   createdAt: string;
   shops: { id: string; name: string; address: string }[];
@@ -73,6 +74,7 @@ function mapBasSheet(table: string[][]) {
       return preferred !== -1 ? preferred : find((h) => h.includes("адрес"));
     })(),
     contactPerson: find((h) => h.includes("контактн")),
+    discount: find((h) => /знижк|скидк/.test(h)),
   };
   const cell = (r: string[], i: number) => (i >= 0 ? (r[i] ?? "").toString().trim() : "");
   const rows = table
@@ -86,6 +88,7 @@ function mapBasSheet(table: string[][]) {
       email: cell(r, cols.email),
       address: cell(r, cols.address),
       contactPerson: cell(r, cols.contactPerson),
+      discount: cell(r, cols.discount),
     }));
   const found = Object.entries(cols)
     .filter(([, i]) => i !== -1)
@@ -101,6 +104,7 @@ const FIELD_LABEL: Record<string, string> = {
   email: "email",
   address: "адреса",
   contactPerson: "контактна особа",
+  discount: "знижка",
 };
 
 export default function AdminClientsPage() {
@@ -361,6 +365,7 @@ export default function AdminClientsPage() {
                   <th className="text-left px-3 py-2 font-medium">Клієнт</th>
                   <th className="text-left px-3 py-2 font-medium">Контакти</th>
                   <th className="text-left px-3 py-2 font-medium">Код BAS</th>
+                  <th className="text-left px-3 py-2 font-medium">Знижка</th>
                   <th className="text-left px-3 py-2 font-medium">Адрес</th>
                   <th className="text-left px-3 py-2 font-medium">Замовлень</th>
                   <th className="text-left px-3 py-2 font-medium">Доступ</th>
@@ -385,6 +390,7 @@ export default function AdminClientsPage() {
                       <div>{c.email ?? ""}</div>
                     </td>
                     <td className="px-3 py-2 text-xs font-mono text-slate-600">{c.basId ?? "—"}</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{c.discountPercent ? `${c.discountPercent}%` : "—"}</td>
                     <td className="px-3 py-2 text-xs text-slate-600">{c.shops.length || <span className="text-amber-600">0</span>}</td>
                     <td className="px-3 py-2 text-xs text-slate-600">{c._count.orders}</td>
                     <td className="px-3 py-2 text-xs">

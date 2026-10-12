@@ -12,6 +12,7 @@ const select = {
   basId: true,
   taxCode: true,
   isActive: true,
+  discountPercent: true,
   passwordIssuedAt: true,
 } as const;
 

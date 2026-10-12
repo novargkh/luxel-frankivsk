@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { discountFor, priceFor } from "@/lib/clientPrice";
 import { availabilityOf } from "@/lib/availability";
 import {
   QuickOrderError,
@@ -61,11 +62,16 @@ export async function POST(req: Request) {
       images: { select: { url: true }, take: 1 },
     },
   });
+  const sessionUser = session.user as { id?: string; role?: string };
+  const discount = await discountFor(
+    sessionUser.id ? { id: sessionUser.id, isAdmin: sessionUser.role === "ADMIN" } : null
+  );
   // The matcher only uses stock to say "немає в наявності"; feed it the
   // effective status (admin override included) as 0 / at least 1.
   const index = buildIndex(
     products.map(({ boxQty, stockOverride, ...p }) => ({
       ...p,
+      price: priceFor(p.price, discount),
       stock: availabilityOf({ stock: p.stock, boxQty, stockOverride }) === "out" ? 0 : Math.max(1, p.stock),
     }))
   );

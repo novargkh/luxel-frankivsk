@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { discountFor, priceFor } from "@/lib/clientPrice";
 import { sessionUser } from "@/lib/adminGuard";
 import { evaluatePromo } from "@/lib/promo";
 
@@ -29,7 +30,9 @@ export async function POST(req: Request) {
     where: { id: { in: wanted.map((i) => i.productId) } },
     select: { id: true, price: true, category: true },
   });
-  const byId = new Map(products.map((p) => [p.id, p]));
+  // Promo discounts apply to the client's own prices.
+  const discount = await discountFor(me);
+  const byId = new Map(products.map((p) => [p.id, { ...p, price: priceFor(p.price, discount) }]));
   const lines = wanted
     .filter((i) => byId.has(i.productId))
     .map((i) => {

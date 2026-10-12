@@ -10,6 +10,7 @@ export type ClientFields = {
   basId?: string | null;
   taxCode?: string | null;
   isActive?: boolean;
+  discountPercent?: number;
 };
 
 const opt = (v: unknown) => {
@@ -27,6 +28,10 @@ export function cleanClientFields(body: Record<string, unknown>): ClientFields {
   }
   if (out.email) out.email = out.email.toLowerCase();
   if (body.isActive !== undefined) out.isActive = Boolean(body.isActive);
+  if (body.discountPercent !== undefined) {
+    const d = Number(String(body.discountPercent ?? "").replace(",", ".").replace("%", ""));
+    out.discountPercent = Number.isFinite(d) ? Math.min(Math.max(d, 0), 100) : 0;
+  }
   return out;
 }
 

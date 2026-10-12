@@ -21,6 +21,7 @@ export async function GET() {
       basId: true,
       taxCode: true,
       isActive: true,
+      discountPercent: true,
       passwordHash: true,
       passwordIssuedAt: true,
       createdAt: true,
