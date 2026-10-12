@@ -9,6 +9,7 @@
 // protocol — see docs/1c-exchange.md for the full writeup, example XML,
 // and curl commands to test each mode by hand.
 import { NextResponse } from "next/server";
+import { catalogComplete, catalogFile, catalogImport, catalogInit } from "@/lib/cmlCatalog";
 import {
   EXCHANGE_COOKIE_NAME,
   buildQueryResponse,
@@ -24,6 +25,8 @@ import {
 // already the default for App Router API routes here, stated explicitly
 // so a future edge-runtime default change doesn't silently break it.
 export const runtime = "nodejs";
+// A catalog import may take a while on a big first upload.
+export const maxDuration = 60;
 
 // 1C/BAS exchange bodies are plain text ("success"/"failure\n<reason>")
 // except mode=query, which returns the raw XML directly.
@@ -46,10 +49,8 @@ async function handle(req: Request): Promise<NextResponse> {
   const type = url.searchParams.get("type");
   const mode = url.searchParams.get("mode");
 
-  // "sale" = orders (the real work). "catalog" = BAF uploading goods and
-  // prices: the site takes those from its own imports, so a catalog upload
-  // is accepted and ignored instead of failing the whole exchange when the
-  // "вивантажувати товари" box is left on in BAF.
+  // "sale" = orders to BAF; "catalog" = goods and prices from BAF
+  // (src/lib/cmlCatalog.ts).
   if (type !== "sale" && type !== "catalog") {
     return text(`failure\nНепідтримуваний тип обміну: ${type ?? ""}`);
   }
@@ -94,26 +95,41 @@ async function handle(req: Request): Promise<NextResponse> {
     return text("failure\nСесія недійсна або протермінована — повторіть checkauth");
   }
 
+  if (type === "catalog") {
+    if (mode === "init") {
+      await catalogInit();
+      // zip=yes: BAF packs everything into one archive, ~10x smaller.
+      // Chunks stay under Vercel's 4.5 MB request limit.
+      return text("zip=yes\nfile_limit=4000000");
+    }
+    if (mode === "file") {
+      const body = Buffer.from(await req.arrayBuffer().catch(() => new ArrayBuffer(0)));
+      await catalogFile(url.searchParams.get("filename") ?? "", body);
+      return text("success");
+    }
+    if (mode === "import") {
+      return text(await catalogImport(url.searchParams.get("filename") ?? ""));
+    }
+    if (mode === "complete" || mode === "deactivate") {
+      await catalogComplete();
+      return text("success");
+    }
+    return text("success");
+  }
+
   if (mode === "init") {
     // Under Vercel's 4.5 MB request limit, so BAF splits bigger files.
     return text("zip=no\nfile_limit=4000000");
   }
 
-  // BAF sends a file: on "sale" its own copy of the orders (statuses after
-  // it processed them), on "catalog" goods and prices. Neither changes
-  // anything on the site: read it, log the size and confirm.
+  // On "sale" BAF sends its own copy of the orders (statuses after it
+  // processed them): nothing on the site changes from it.
   if (mode === "file") {
     const body = await req.arrayBuffer().catch(() => new ArrayBuffer(0));
-    console.log(
-      `[1c-exchange] type=${type} mode=file: ${url.searchParams.get("filename") ?? "?"} ${body.byteLength} bytes (ignored)`
-    );
+    console.log(`[1c-exchange] type=sale mode=file: ${url.searchParams.get("filename") ?? "?"} ${body.byteLength} bytes (ignored)`);
     return text("success");
   }
   if (mode === "import" || mode === "complete" || mode === "deactivate") {
-    return text("success");
-  }
-
-  if (type === "catalog") {
     return text("success");
   }
 

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
+import { SyncBar } from "@/components/admin/SyncProgress";
 import {
   ArrowUUpLeft,
   CalendarBlank,
@@ -214,7 +215,10 @@ function Frame({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
-      <div className="lg:pl-64 min-h-dvh flex flex-col">{children}</div>
+      <div className="lg:pl-64 min-h-dvh flex flex-col">
+        <SyncBar />
+        {children}
+      </div>
     </>
   );
 }

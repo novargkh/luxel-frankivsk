@@ -49,6 +49,9 @@ model User {
   // can't log in before that).
   passwordHash String   @default("")
   passwordIssuedAt DateTime?
+  // The current password, encrypted (AES-256-GCM, key from the server
+  // secret) so the admin can see it and pass it on. Clients never see it.
+  passwordEnc  String?
   name         String
   company      String?
   // Client's own contact phone (distinct from a Shop's delivery-point
@@ -129,6 +132,9 @@ model Product {
   // own name and photos from luxel.ua.
   bafName     String?
   bafSyncedAt DateTime?
+  // Set when a full BAF catalog upload no longer contains this product: it
+  // is hidden from the catalog (isActive=false) until BAF sends it again.
+  archivedAt  DateTime?
   // BAS/1C product GUID, once known — the primary product-matching key for
   // the exchange when set. Filled in by an admin, e.g. via the "BAS ID"
   // import on the products page. Never set automatically.
@@ -366,4 +372,33 @@ model ClientPrice {
 
   @@id([userId, productId])
   @@index([productId])
+}
+
+// Files BAF uploads during a CommerceML exchange (import.xml, offers.xml or
+// a zip with them), kept between the separate HTTP calls of one session.
+model ExchangeFile {
+  name      String   @id
+  data      Bytes
+  updatedAt DateTime @updatedAt
+}
+
+// One BAF catalog exchange: what stage it is at, for the admin progress bar.
+model SyncRun {
+  id         String    @id @default(cuid())
+  kind       String    // "baf-catalog"
+  status     String    @default("running") // running | done | error
+  stage      String    @default("")
+  processed  Int       @default(0)
+  total      Int       @default(0)
+  bytes      Int       @default(0)
+  created    Int       @default(0)
+  updated    Int       @default(0)
+  unchanged  Int       @default(0)
+  archived   Int       @default(0)
+  full       Boolean   @default(false)
+  message    String?
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+
+  @@index([kind, startedAt])
 }

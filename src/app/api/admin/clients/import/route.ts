@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ensureClientAccounts } from "@/lib/clientAccount";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { phoneKey } from "@/lib/clientAccount";
@@ -123,5 +124,8 @@ export async function POST(req: Request) {
     if (pk && phone) phoneOwner.set(pk, selfId ?? "new");
   }
 
-  return NextResponse.json({ total: rows.length, created, updated, skipped, notes: notes.slice(0, 50) });
+  // Every client that can log in gets a cabinet with a password right away;
+  // the admin sees the passwords in the client cards and the CSV list.
+  const accounts = await ensureClientAccounts();
+  return NextResponse.json({ total: rows.length, created, updated, skipped, accounts, notes: notes.slice(0, 50) });
 }

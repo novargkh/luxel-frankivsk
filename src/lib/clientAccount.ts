@@ -34,3 +34,38 @@ export function generatePassword(length = 10) {
   crypto.getRandomValues(bytes);
   return Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
+
+/**
+ * Sets a client's password (a new random one, or the admin's own) and keeps
+ * it readable for the admin. Returns the password.
+ */
+export async function setClientPassword(userId: string, custom?: string): Promise<string> {
+  const { default: bcrypt } = await import("bcryptjs");
+  const { sealSecret } = await import("@/lib/secretBox");
+  const password = custom?.trim() || generatePassword();
+  await prisma.user.update({
+    where: { id: userId },
+    data: { passwordHash: await bcrypt.hash(password, 10), passwordEnc: sealSecret(password), passwordIssuedAt: new Date() },
+  });
+  return password;
+}
+
+/** The login a client types: email if there is one, else the phone. */
+export function loginOf(u: { email: string | null; phone: string | null }) {
+  return u.email || u.phone || "";
+}
+
+/**
+ * Gives a password (a client cabinet) to every client who can log in
+ * (has an email or phone) but has none yet. Returns how many were created.
+ */
+export async function ensureClientAccounts(): Promise<number> {
+  const users = await prisma.user.findMany({
+    where: { role: "CLIENT", passwordHash: "", OR: [{ email: { not: null } }, { phone: { not: null } }] },
+    select: { id: true },
+  });
+  for (let i = 0; i < users.length; i += 8) {
+    await Promise.all(users.slice(i, i + 8).map((u) => setClientPassword(u.id)));
+  }
+  return users.length;
+}

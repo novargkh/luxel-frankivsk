@@ -38,7 +38,7 @@ type ChangeRequest = {
   user: { id: string; name: string; company: string | null; phone: string | null };
 };
 
-type ImportResult = { total: number; created: number; updated: number; skipped: string[]; notes: string[] };
+type ImportResult = { accounts?: number; total: number; created: number; updated: number; skipped: string[]; notes: string[] };
 
 const emptyForm = { company: "", name: "", phone: "", email: "", basId: "", taxCode: "" };
 
@@ -118,6 +118,8 @@ export default function AdminClientsPage() {
   const [error, setError] = useState("");
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
+  const [accountsBusy, setAccountsBusy] = useState(false);
+  const [accountsMsg, setAccountsMsg] = useState("");
   const [importError, setImportError] = useState("");
   const [replyDraft, setReplyDraft] = useState<Record<string, string>>({});
   const fileRef = useRef<HTMLInputElement>(null);
@@ -189,6 +191,34 @@ export default function AdminClientsPage() {
     }
   }
 
+  async function createAccounts() {
+    setAccountsBusy(true);
+    setAccountsMsg("");
+    const res = await fetch("/api/admin/clients/accounts", { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setAccountsBusy(false);
+    setAccountsMsg(
+      res.ok
+        ? `Створено кабінетів: ${d.created}.${d.noLogin ? ` Без email і телефону (не можна створити): ${d.noLogin}.` : ""}`
+        : d.error ?? "Не вдалося"
+    );
+    load();
+  }
+
+  async function downloadCredentials() {
+    const res = await fetch("/api/admin/clients/accounts");
+    if (!res.ok) return;
+    const list = (await res.json()) as { company: string; basId: string | null; login: string; password: string; isActive: boolean }[];
+    const ws = XLSX.utils.aoa_to_sheet([
+      ["Клієнт", "Код BAF", "Логін", "Пароль", "Вхід"],
+      ...list.map((c) => [c.company, c.basId ?? "", c.login, c.password, c.isActive ? "дозволено" : "заблоковано"]),
+    ]);
+    ws["!cols"] = [{ wch: 40 }, { wch: 14 }, { wch: 26 }, { wch: 16 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Кабінети");
+    XLSX.writeFile(wb, `luxel-kabinety-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }
+
   async function createClient() {
     setSaving(true);
     setError("");
@@ -241,6 +271,21 @@ export default function AdminClientsPage() {
               {importing ? "Імпорт..." : "Імпорт з BAF (Excel)"}
             </button>
             <button
+              onClick={createAccounts}
+              disabled={accountsBusy}
+              title="Створити пароль кожному клієнту, у якого його ще немає"
+              className="text-sm text-slate-700 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {accountsBusy ? "Створюю…" : "Кабінети всім"}
+            </button>
+            <button
+              onClick={downloadCredentials}
+              title="Excel з логінами й паролями всіх клієнтів"
+              className="text-sm text-slate-700 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-50"
+            >
+              Логіни й паролі
+            </button>
+            <button
               onClick={() => setCreating((v) => !v)}
               className="text-sm text-brand border border-brand rounded-lg px-4 py-2 hover:bg-red-50"
             >
@@ -250,9 +295,11 @@ export default function AdminClientsPage() {
         </div>
         <p className="text-sm text-slate-500 mb-4">
           Клієнти беруться з BAF: вивантажте список контрагентів у Excel і завантажте сюди. Повторний імпорт
-          оновлює контакти за кодом BAF. Пароль кожному видається в картці клієнта.
+          оновлює контакти за кодом BAF. Кожен новий клієнт з email або телефоном одразу отримує кабінет і пароль;
+          паролі видно в картці клієнта і в списку «Логіни й паролі».
         </p>
 
+        {accountsMsg && <p className="mb-4 text-sm rounded-lg px-3 py-2 bg-slate-100 text-slate-800">{accountsMsg}</p>}
         {importError && (
           <p className="mb-4 text-sm rounded-lg px-3 py-2 bg-red-50 text-red-600">{importError}</p>
         )}
@@ -262,6 +309,7 @@ export default function AdminClientsPage() {
               Рядків у файлі: {importResult.total}. Нових клієнтів: {importResult.created}, оновлено:{" "}
               {importResult.updated}
               {importResult.skipped.length > 0 && `, пропущено: ${importResult.skipped.length}`}.
+              {!!importResult.accounts && ` Створено кабінетів з паролями: ${importResult.accounts}.`}
             </p>
             {[...importResult.skipped, ...importResult.notes].length > 0 && (
               <ul className="mt-1 text-xs text-emerald-900/80 list-disc pl-4 max-h-40 overflow-y-auto">

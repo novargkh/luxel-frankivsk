@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CalendarBlank } from "@phosphor-icons/react";
 import { kyivDateTime, money } from "@/lib/adminOrders";
+import { SyncCard } from "@/components/admin/SyncProgress";
 
 type Summary = {
   today: { count: number; total: number };
@@ -74,6 +75,10 @@ export default function AdminDashboard() {
             <div key={i} className="rounded-xl bg-white ring-1 ring-slate-200 p-4 h-[92px] animate-pulse" />
           )
         )}
+      </div>
+
+      <div className="mb-4">
+        <SyncCard />
       </div>
 
       <div className="grid lg:grid-cols-5 gap-4">

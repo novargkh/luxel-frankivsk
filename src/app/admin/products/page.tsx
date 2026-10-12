@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { parseCsv } from "@/lib/csv";
 import * as XLSX from "xlsx";
 import Link from "next/link";
+import { SyncCard } from "@/components/admin/SyncProgress";
 import { AVAILABILITY_LABEL, type Availability } from "@/lib/availability";
 
 type ProductImage = { id: string; url: string };
@@ -21,6 +22,7 @@ type Product = {
   images: ProductImage[];
   article: string | null;
   basId: string | null;
+  archivedAt?: string | null;
   boxQty?: number | null;
   sourceStatus?: string | null;
   stockOverride?: Availability | null;
@@ -434,6 +436,9 @@ export default function AdminProductsPage() {
   return (
     <div className="min-h-screen flex flex-col">
       <main className="max-w-6xl mx-auto w-full px-4 py-6 flex-1">
+        <div className="mb-4">
+          <SyncCard />
+        </div>
         <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
           <h1 className="text-lg font-semibold text-slate-900">Товари</h1>
           <div className="flex items-center gap-2 flex-wrap">
@@ -888,7 +893,9 @@ export default function AdminProductsPage() {
                       {p.isActive ? (
                         <span className="text-xs text-emerald-600">видно</span>
                       ) : (
-                        <span className="text-xs text-slate-400">приховано</span>
+                        <span className="text-xs text-slate-400" title={p.archivedAt ? "Немає у вивантаженні з BAF" : undefined}>
+                          {p.archivedAt ? "немає в BAF" : "приховано"}
+                        </span>
                       )}
                     </td>
                     <td className="px-3 py-2 text-right space-x-2">

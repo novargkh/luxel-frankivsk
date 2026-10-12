@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { cleanClientFields, clientConflicts } from "@/lib/clientFields";
+import { openSecret } from "@/lib/secretBox";
 
 const select = {
   id: true,
@@ -14,7 +15,14 @@ const select = {
   isActive: true,
   discountPercent: true,
   passwordIssuedAt: true,
+  passwordEnc: true,
 } as const;
+
+// The admin sees the client's current password (decrypted), never the hash.
+function withPassword<T extends { passwordEnc: string | null }>(u: T) {
+  const { passwordEnc, ...rest } = u;
+  return { ...rest, password: openSecret(passwordEnc) };
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   const me = await sessionUser();
@@ -22,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const user = await prisma.user.findFirst({ where: { id, role: "CLIENT" }, select });
   if (!user) return NextResponse.json({ error: "not found" }, { status: 404 });
-  return NextResponse.json(user);
+  return NextResponse.json(withPassword(user));
 }
 
 // Admin edits a client's contacts, BAS code, ЄДРПОУ, or blocks the account.
@@ -39,5 +47,5 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   if (conflict) return NextResponse.json({ error: conflict }, { status: 400 });
 
   const user = await prisma.user.update({ where: { id }, data, select });
-  return NextResponse.json(user);
+  return NextResponse.json(withPassword(user));
 }

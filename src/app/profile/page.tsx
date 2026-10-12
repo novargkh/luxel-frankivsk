@@ -28,6 +28,7 @@ type Profile = {
   isActive?: boolean;
   discountPercent?: number;
   passwordIssuedAt?: string | null;
+  password?: string | null;
 };
 type ChangeRequest = {
   id: string;
@@ -94,6 +95,8 @@ function ProfileInner() {
   const [isActive, setIsActive] = useState(true);
   const [discount, setDiscount] = useState("");
   const [issued, setIssued] = useState<{ login: string; password: string } | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState<string | null>(null);
   const [requests, setRequests] = useState<ChangeRequest[]>([]);
   const [requestText, setRequestText] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
@@ -190,17 +193,23 @@ function ProfileInner() {
     if (res.ok) setProfile(data);
   }
 
-  async function issuePassword() {
-    if (profile?.passwordIssuedAt && !confirm("Видати новий пароль? Старий перестане працювати.")) return;
+  async function issuePassword(custom?: string) {
+    if (!custom && profile?.passwordIssuedAt && !confirm("Згенерувати новий пароль? Старий перестане працювати.")) return;
     setProfileMsg("");
-    const res = await fetch(`/api/admin/clients/${clientId}/password`, { method: "POST" });
+    const res = await fetch(`/api/admin/clients/${clientId}/password`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(custom ? { password: custom } : {}),
+    });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setProfileMsg(data.error ?? "Не вдалося видати пароль");
+      setProfileMsg(data.error ?? "Не вдалося змінити пароль");
       return;
     }
     setIssued({ login: data.login, password: data.password });
-    setProfile((p) => (p ? { ...p, passwordIssuedAt: new Date().toISOString() } : p));
+    setShowPassword(true);
+    setNewPassword(null);
+    setProfile((p) => (p ? { ...p, passwordIssuedAt: new Date().toISOString(), password: data.password } : p));
   }
 
   async function sendRequest() {
@@ -363,40 +372,92 @@ function ProfileInner() {
               >
                 {savingProfile ? "Збереження..." : "Зберегти"}
               </button>
-              <button
-                onClick={issuePassword}
-                className="text-sm text-slate-700 border border-slate-300 rounded-lg px-4 py-2 hover:bg-slate-50"
-              >
-                {profile?.passwordIssuedAt ? "Видати новий пароль" : "Видати пароль"}
-              </button>
-              <span className="text-xs text-slate-500">
-                {profile?.passwordIssuedAt
-                  ? `Пароль видано ${new Date(profile.passwordIssuedAt).toLocaleDateString("uk-UA")}`
-                  : "Пароль ще не видано: клієнт не може увійти"}
-              </span>
               {profileMsg && <span className="text-xs text-slate-700">{profileMsg}</span>}
             </div>
-            {issued && (
-              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
-                <p className="font-medium mb-1">Передайте клієнту (пароль показано лише один раз):</p>
-                <p className="font-mono">Сайт: luxel-frankivsk.vercel.app</p>
-                <p className="font-mono">Логін: {issued.login}</p>
-                <p className="font-mono">Пароль: {issued.password}</p>
-                <button
-                  onClick={() =>
-                    navigator.clipboard
-                      ?.writeText(
-                        `Кабінет LUXEL: https://luxel-frankivsk.vercel.app\nЛогін: ${issued.login}\nПароль: ${issued.password}`
-                      )
-                      .then(() => setProfileMsg("Скопійовано"))
-                      .catch(() => {})
-                  }
-                  className="mt-2 text-xs border border-emerald-300 rounded-lg px-3 py-1 hover:bg-emerald-100"
-                >
-                  Скопіювати для клієнта
-                </button>
-              </div>
-            )}
+            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+              <p className="font-medium text-slate-900 mb-2">Доступ до кабінету</p>
+              {!(profile?.email || profile?.phone) ? (
+                <p className="text-amber-700">Вкажіть email або телефон: це логін клієнта. Без нього кабінет не створити.</p>
+              ) : (
+                <>
+                  <p>
+                    <span className="text-slate-500">Логін: </span>
+                    <span className="font-mono">{profile?.email || profile?.phone}</span>
+                  </p>
+                  <p className="flex flex-wrap items-center gap-2 mt-1">
+                    <span className="text-slate-500">Пароль: </span>
+                    {(issued?.password ?? profile?.password) ? (
+                      <>
+                        <span className="font-mono">{showPassword ? issued?.password ?? profile?.password : "••••••••••"}</span>
+                        <button type="button" onClick={() => setShowPassword((v) => !v)} className="text-xs underline text-slate-600">
+                          {showPassword ? "Сховати" : "Показати"}
+                        </button>
+                      </>
+                    ) : profile?.passwordIssuedAt ? (
+                      <span className="text-slate-500">видано раніше, не збережено — згенеруйте новий</span>
+                    ) : (
+                      <span className="text-amber-700">ще немає: клієнт не може увійти</span>
+                    )}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => issuePassword()}
+                      className="text-xs border border-slate-300 bg-white rounded-lg px-3 py-1.5 hover:bg-slate-100"
+                    >
+                      {profile?.passwordIssuedAt ? "Згенерувати новий" : "Створити кабінет"}
+                    </button>
+                    {newPassword === null ? (
+                      <button
+                        type="button"
+                        onClick={() => setNewPassword("")}
+                        className="text-xs border border-slate-300 bg-white rounded-lg px-3 py-1.5 hover:bg-slate-100"
+                      >
+                        Задати свій пароль
+                      </button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5">
+                        <input
+                          autoFocus
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="мін. 6 символів"
+                          aria-label="Новий пароль"
+                          className="h-8 w-40 rounded-md border border-slate-300 px-2 font-mono text-xs"
+                        />
+                        <button
+                          type="button"
+                          disabled={newPassword.trim().length < 6}
+                          onClick={() => issuePassword(newPassword.trim())}
+                          className="text-xs bg-slate-900 text-white rounded-lg px-3 py-1.5 disabled:opacity-40"
+                        >
+                          Зберегти
+                        </button>
+                        <button type="button" onClick={() => setNewPassword(null)} className="text-xs text-slate-500 underline">
+                          Скасувати
+                        </button>
+                      </span>
+                    )}
+                    {(issued?.password ?? profile?.password) && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          navigator.clipboard
+                            ?.writeText(
+                              `Кабінет LUXEL: ${window.location.origin}\nЛогін: ${(profile?.email || profile?.phone || "")}\nПароль: ${issued?.password ?? profile?.password}`
+                            )
+                            .then(() => setProfileMsg("Скопійовано"))
+                            .catch(() => {})
+                        }
+                        className="text-xs border border-emerald-300 bg-emerald-50 text-emerald-900 rounded-lg px-3 py-1.5 hover:bg-emerald-100"
+                      >
+                        Скопіювати для клієнта
+                      </button>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
           </section>
         ) : (
           <section className="border border-slate-200 bg-white rounded-xl p-4 mb-6">

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { setClientPassword } from "@/lib/clientAccount";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { cleanClientFields, clientConflicts } from "@/lib/clientFields";
@@ -56,5 +57,7 @@ export async function POST(req: Request) {
     data: { ...data, name: data.name || data.company || "", role: "CLIENT" },
     select: { id: true },
   });
+  // A cabinet right away when there is a login (email or phone).
+  if (data.email || data.phone) await setClientPassword(user.id);
   return NextResponse.json(user, { status: 201 });
 }
