@@ -350,7 +350,8 @@ export function buildOrdersXml(orders: OrderForExchange[]): string {
           return {
             Ид: productMatch.basId || productMatch.article,
             Артикул: productMatch.article,
-            Наименование: item.product.name,
+            // BAF's own name when the nomenclature was imported from BAF.
+            Наименование: item.product.bafName || item.product.name,
             БазоваяЕдиница: item.product.unit || "шт",
             ЦенаЗаЕдиницу: money(item.priceAtOrder),
             Количество: String(item.quantity),

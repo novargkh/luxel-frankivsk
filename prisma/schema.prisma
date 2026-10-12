@@ -77,6 +77,7 @@ model User {
   promoCodes PromoCode[] @relation("PromoCodeClients")
   returns    ReturnRequest[]
   profileRequests ProfileRequest[]
+  clientPrices    ClientPrice[]
 }
 
 // A delivery/pickup point that belongs to a client. A client with several
@@ -123,6 +124,11 @@ model Product {
   // regex-extracted article from the product name (extractAttributes) when
   // null — see src/lib/onecExchange.ts.
   article     String?
+  // Name of the item in BAF (from the BAF nomenclature import); orders go
+  // to BAF with this name and the BAF article. The site keeps showing its
+  // own name and photos from luxel.ua.
+  bafName     String?
+  bafSyncedAt DateTime?
   // BAS/1C product GUID, once known — the primary product-matching key for
   // the exchange when set. Filled in by an admin, e.g. via the "BAS ID"
   // import on the products page. Never set automatically.
@@ -151,6 +157,7 @@ model Product {
   images     ProductImage[]
   orderItems OrderItem[]
   promoCodes PromoCode[] @relation("PromoCodeProducts")
+  clientPrices ClientPrice[]
 }
 
 model ProductImage {
@@ -345,4 +352,18 @@ model ProfileRequest {
   adminComment String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+// A client's own price for a product, from that client's price list
+// exported from BAF. Wins over "base price minus discount".
+model ClientPrice {
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  price     Float
+  updatedAt DateTime @updatedAt
+
+  @@id([userId, productId])
+  @@index([productId])
 }

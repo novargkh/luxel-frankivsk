@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { availabilityOf } from "@/lib/availability";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { discountFor, priceFor } from "@/lib/clientPrice";
+import { pricingFor } from "@/lib/clientPrice";
 import { evaluatePromo } from "@/lib/promo";
 import { orderNumbers } from "@/lib/docNumber";
 
@@ -27,7 +27,7 @@ export async function GET() {
     orderBy: { createdAt: "desc" },
   });
 
-  const discount = await discountFor(userId ? { id: userId, isAdmin: role === "ADMIN" } : null);
+  const price = await pricingFor(userId ? { id: userId, isAdmin: role === "ADMIN" } : null);
   // Readable numbers like "11.10.25-3" (date + order of the day).
   const numbers = await orderNumbers(orders);
   return NextResponse.json(
@@ -39,7 +39,7 @@ export async function GET() {
         product: {
           ...i.product,
           // Clients never see the base price, only their own.
-          price: priceFor(i.product.price, discount),
+          price: price(i.product.id, i.product.price),
           availability: availabilityOf(i.product),
         },
       })),
@@ -86,8 +86,8 @@ export async function POST(req: Request) {
     where: { id: { in: productIds } },
   });
   // The client's own prices (base price minus their personal discount).
-  const discount = await discountFor({ id: userId, isAdmin: false });
-  const products = found.map((p) => ({ ...p, price: priceFor(p.price, discount) }));
+  const price = await pricingFor({ id: userId, isAdmin: false });
+  const products = found.map((p) => ({ ...p, price: price(p.id, p.price) }));
 
   const productMap = new Map(products.map((p) => [p.id, p]));
 

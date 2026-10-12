@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { normalizeCategory } from "@/lib/categorize";
 import { prisma } from "@/lib/prisma";
-import { discountFor, priceFor } from "@/lib/clientPrice";
+import { pricingFor } from "@/lib/clientPrice";
 import { autoAvailability, availabilityOf } from "@/lib/availability";
 
 export async function GET() {
@@ -14,7 +14,7 @@ export async function GET() {
   const role = (session.user as { role?: string }).role;
   const userId = (session.user as { id?: string }).id;
   // Clients get their own price (base minus their discount); admins the base.
-  const discount = await discountFor(userId ? { id: userId, isAdmin: role === "ADMIN" } : null);
+  const price = await pricingFor(userId ? { id: userId, isAdmin: role === "ADMIN" } : null);
   const products = await prisma.product.findMany({
     where: role === "ADMIN" ? {} : { isActive: true },
     include: { images: true },
@@ -24,7 +24,7 @@ export async function GET() {
   return NextResponse.json(
     products.map((product) => ({
       ...product,
-      price: priceFor(product.price, discount),
+      price: price(product.id, product.price),
       category: product.category ? normalizeCategory(product.category) : product.category,
       // Effective status (admin override for today, else automatic) and the
       // automatic one, so the admin can see what the override replaced.

@@ -15,3 +15,21 @@ export async function discountFor(user: { id: string; isAdmin: boolean } | null)
   const u = await prisma.user.findUnique({ where: { id: user.id }, select: { discountPercent: true } });
   return u?.discountPercent ?? 0;
 }
+
+export type Pricing = (productId: string, basePrice: number) => number;
+
+/**
+ * The price function for this viewer. A client's own price from their BAF
+ * price list wins; otherwise base price minus their discount. Admins see
+ * base prices.
+ */
+export async function pricingFor(user: { id: string; isAdmin: boolean } | null): Promise<Pricing> {
+  if (!user || user.isAdmin) return (_id, base) => base;
+  const [u, own] = await Promise.all([
+    prisma.user.findUnique({ where: { id: user.id }, select: { discountPercent: true } }),
+    prisma.clientPrice.findMany({ where: { userId: user.id }, select: { productId: true, price: true } }),
+  ]);
+  const discount = u?.discountPercent ?? 0;
+  const map = new Map(own.map((r) => [r.productId, r.price]));
+  return (id, base) => map.get(id) ?? priceFor(base, discount);
+}

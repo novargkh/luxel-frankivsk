@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
+import ClientPriceList from "@/components/admin/ClientPriceList";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), {
   ssr: false,
@@ -416,6 +417,8 @@ function ProfileInner() {
             </dl>
           </section>
         )}
+
+        {adminMode && clientId && <ClientPriceList clientId={clientId} />}
 
         <section>
           <div className="flex items-center justify-between mb-3">
