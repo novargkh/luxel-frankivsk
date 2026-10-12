@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CircleNotch, MagnifyingGlass, Plus, Trash, X } from "@phosphor-icons/react";
+import { CircleNotch, MagnifyingGlass, Minus, Plus, Trash, X } from "@phosphor-icons/react";
 import {
   BAS_LABEL,
   BAS_STYLE,
@@ -43,6 +43,17 @@ type Loaded = {
   }[];
 };
 type CatalogItem = { id: string; name: string; price: number; isActive?: boolean };
+
+// "Розетка одинарна Luxel JAZZ (9601) Бронзова" -> article "9601" shown as
+// a tag + "Розетка одинарна JAZZ Бронзова" on one line.
+function splitName(name: string) {
+  const all = [...name.matchAll(/\(([^()]+)\)/g)];
+  const last = all.at(-1);
+  const article = last ? last[1] : null;
+  let short = last ? name.slice(0, last.index) + name.slice((last.index ?? 0) + last[0].length) : name;
+  short = short.replace(/\bLuxel\b/gi, "").replace(/\s{2,}/g, " ").trim();
+  return { article, short: short || name };
+}
 
 let seq = 0;
 const nextKey = () => `n${++seq}`;
@@ -275,40 +286,65 @@ export default function OrderEditor({
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-semibold">Позиції ({lines.length})</h3>
               </div>
-              <div className="rounded-xl border border-slate-200 overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-slate-50 text-xs text-slate-500">
-                    <tr>
-                      <th className="text-left font-medium px-3 py-2">Товар</th>
-                      <th className="text-right font-medium px-2 py-2 w-20">К-сть</th>
-                      <th className="text-right font-medium px-2 py-2 w-28">Ціна, ₴</th>
-                      <th className="text-right font-medium px-3 py-2 w-24">Сума</th>
-                      <th className="w-9" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {lines.map((l) => (
-                      <tr key={l.key} className="border-t border-slate-100 align-top">
-                        <td className="px-3 py-2">
-                          <p className="leading-snug">{l.name}</p>
-                          {!l.id && <p className="text-[11px] text-blue-600">додано</p>}
-                        </td>
-                        <td className="px-2 py-1.5">
+              <ul className="rounded-xl border border-slate-200 divide-y divide-slate-100">
+                {lines.map((l) => {
+                  const { article, short } = splitName(l.name);
+                  const setQty = (q: number) =>
+                    setLines((ls) =>
+                      ls.map((x) => (x.key === l.key ? { ...x, quantity: Math.max(1, Math.min(99999, Math.round(q) || 1)) } : x))
+                    );
+                  return (
+                    <li key={l.key} className="px-3 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        {article && (
+                          <span className="shrink-0 rounded-md bg-slate-800 px-1.5 py-0.5 text-[11px] font-semibold text-white tabular">
+                            {article}
+                          </span>
+                        )}
+                        <p className="flex-1 min-w-0 truncate text-sm font-medium" title={l.name}>
+                          {short}
+                        </p>
+                        {!l.id && <span className="shrink-0 text-[11px] font-medium text-blue-600">новий</span>}
+                        <button
+                          type="button"
+                          onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
+                          aria-label={`Прибрати: ${l.name}`}
+                          className="shrink-0 h-8 w-8 -mr-1 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
+                        >
+                          <Trash size={16} />
+                        </button>
+                      </div>
+                      <div className="mt-1.5 flex items-center gap-2 text-sm">
+                        <div className="inline-flex items-center rounded-md border border-slate-300">
+                          <button
+                            type="button"
+                            onClick={() => setQty(l.quantity - 1)}
+                            aria-label="Менше"
+                            className="h-8 w-8 inline-flex items-center justify-center text-slate-600 hover:bg-slate-50"
+                          >
+                            <Minus size={14} />
+                          </button>
                           <input
                             type="number"
                             inputMode="numeric"
                             min={1}
                             max={99999}
                             value={l.quantity}
-                            onChange={(e) => {
-                              const v = Math.max(1, Math.min(99999, Math.round(Number(e.target.value) || 1)));
-                              setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, quantity: v } : x)));
-                            }}
+                            onChange={(e) => setQty(Number(e.target.value))}
                             aria-label={`Кількість: ${l.name}`}
-                            className="w-full h-9 rounded-md border border-slate-300 px-2 text-right tabular"
+                            className="h-8 w-14 border-x border-slate-300 text-center tabular [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                        </td>
-                        <td className="px-2 py-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setQty(l.quantity + 1)}
+                            aria-label="Більше"
+                            className="h-8 w-8 inline-flex items-center justify-center text-slate-600 hover:bg-slate-50"
+                          >
+                            <Plus size={14} />
+                          </button>
+                        </div>
+                        <span className="text-slate-400">×</span>
+                        <label className="relative">
                           <input
                             type="number"
                             inputMode="decimal"
@@ -320,25 +356,16 @@ export default function OrderEditor({
                               setLines((ls) => ls.map((x) => (x.key === l.key ? { ...x, priceAtOrder: v } : x)));
                             }}
                             aria-label={`Ціна: ${l.name}`}
-                            className="w-full h-9 rounded-md border border-slate-300 px-2 text-right tabular"
+                            className="h-8 w-24 rounded-md border border-slate-300 pl-2 pr-6 text-right tabular [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                           />
-                        </td>
-                        <td className="px-3 py-2 text-right tabular whitespace-nowrap">{money(l.quantity * l.priceAtOrder)}</td>
-                        <td className="pr-2 py-1.5">
-                          <button
-                            type="button"
-                            onClick={() => setLines((ls) => ls.filter((x) => x.key !== l.key))}
-                            aria-label={`Прибрати: ${l.name}`}
-                            className="h-9 w-8 inline-flex items-center justify-center rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50"
-                          >
-                            <Trash size={16} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                          <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-xs text-slate-400">₴</span>
+                        </label>
+                        <span className="ml-auto font-semibold tabular whitespace-nowrap">{money(l.quantity * l.priceAtOrder)}</span>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
 
               <div className="relative mt-2">
                 <MagnifyingGlass size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -360,7 +387,7 @@ export default function OrderEditor({
                           className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm hover:bg-slate-50"
                         >
                           <Plus size={14} className="text-slate-400 shrink-0" />
-                          <span className="flex-1">{p.name}</span>
+                          <span className="flex-1 min-w-0 truncate" title={p.name}>{p.name}</span>
                           <span className="tabular text-slate-500">{money(p.price)}</span>
                         </button>
                       </li>

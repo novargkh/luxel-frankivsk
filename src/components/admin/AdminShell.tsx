@@ -100,7 +100,7 @@ function Frame({ children }: { children: React.ReactNode }) {
     <nav aria-label="Адмін-меню" className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
       {GROUPS.map((g) => (
         <div key={g.title}>
-          <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">{g.title}</p>
+          <p className="px-3 mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">{g.title}</p>
           <ul className="space-y-0.5">
             {g.items.map((it) => {
               const active = it.match
@@ -152,9 +152,7 @@ function Frame({ children }: { children: React.ReactNode }) {
 
   const brand = (
     <div className="flex items-center gap-3 px-6 h-16 border-b border-white/10 shrink-0">
-      <span className="inline-flex items-center rounded-md bg-white px-2 py-1">
-        <Image src="/brand/logo.png" alt="LUXEL" width={64} height={20} priority />
-      </span>
+      <Image src="/brand/logo-trim.png" alt="LUXEL" width={84} height={22} priority className="h-[22px] w-auto" />
       <span className="text-[13px] font-semibold text-white tracking-wide">Адмін-панель</span>
     </div>
   );
@@ -162,14 +160,14 @@ function Frame({ children }: { children: React.ReactNode }) {
   return (
     <>
       {/* Desktop sidebar */}
-      <aside className="no-print hidden lg:flex fixed inset-y-0 left-0 z-40 w-64 flex-col bg-[#15171c]">
+      <aside className="no-print hidden lg:flex fixed inset-y-0 left-0 z-40 w-64 flex-col bg-[#343b47]">
         {brand}
         {nav}
         {footer}
       </aside>
 
       {/* Phone / tablet top bar */}
-      <header className="no-print lg:hidden sticky top-0 z-40 h-14 flex items-center gap-3 px-3 bg-[#15171c] text-white">
+      <header className="no-print lg:hidden sticky top-0 z-40 h-14 flex items-center gap-3 px-3 bg-[#343b47] text-white">
         <button
           type="button"
           onClick={() => setOpenFor(`${pathname}?${view}`)}
@@ -178,9 +176,7 @@ function Frame({ children }: { children: React.ReactNode }) {
         >
           <List size={22} />
         </button>
-        <span className="inline-flex items-center rounded-md bg-white px-2 py-0.5">
-          <Image src="/brand/logo.png" alt="LUXEL" width={56} height={18} />
-        </span>
+        <Image src="/brand/logo-trim.png" alt="LUXEL" width={69} height={18} className="h-[18px] w-auto" />
         <span className="text-[13px] font-semibold">Адмін-панель</span>
         {counts && counts.newOrders > 0 && (
           <Link
@@ -200,7 +196,7 @@ function Frame({ children }: { children: React.ReactNode }) {
             className="absolute inset-0 bg-black/40"
             onClick={() => setOpenFor(null)}
           />
-          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] flex flex-col bg-[#15171c] shadow-2xl">
+          <aside className="absolute inset-y-0 left-0 w-72 max-w-[85vw] flex flex-col bg-[#343b47] shadow-2xl">
             <div className="flex items-center justify-between pr-2">
               {brand}
               <button
