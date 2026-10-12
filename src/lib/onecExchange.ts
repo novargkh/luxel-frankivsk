@@ -79,26 +79,43 @@ function timingSafeEqual(a: string, b: string): boolean {
 // Auth: HTTP Basic (technical login, unrelated to NextAuth) + IP allowlist
 // ---------------------------------------------------------------------
 
-export function checkBasicAuth(req: Request): boolean {
-  const expectedLogin = process.env.ONE_C_EXCHANGE_LOGIN;
-  const expectedPassword = process.env.ONE_C_EXCHANGE_PASSWORD;
-  if (!expectedLogin || !expectedPassword) return false;
+export type AuthCheck = "ok" | "not-configured" | "no-credentials" | "wrong";
 
-  const header = req.headers.get("authorization") || "";
-  if (!header.startsWith("Basic ")) return false;
+// Values pasted into Vercel often carry a stray space or line break, and
+// some 1C builds write the scheme as "basic": both are tolerated.
+export function checkBasicAuthDetailed(req: Request): AuthCheck {
+  const expectedLogin = process.env.ONE_C_EXCHANGE_LOGIN?.trim();
+  const expectedPassword = process.env.ONE_C_EXCHANGE_PASSWORD?.trim();
+  if (!expectedLogin || !expectedPassword) return "not-configured";
+
+  const header = (req.headers.get("authorization") || "").trim();
+  if (!/^basic\s+/i.test(header)) return "no-credentials";
 
   let decoded: string;
   try {
-    decoded = Buffer.from(header.slice(6), "base64").toString("utf8");
+    decoded = Buffer.from(header.replace(/^basic\s+/i, ""), "base64").toString("utf8");
   } catch {
-    return false;
+    return "wrong";
   }
   const sepIdx = decoded.indexOf(":");
-  if (sepIdx === -1) return false;
-  const login = decoded.slice(0, sepIdx);
-  const password = decoded.slice(sepIdx + 1);
+  if (sepIdx === -1) return "wrong";
+  const login = decoded.slice(0, sepIdx).trim();
+  const password = decoded.slice(sepIdx + 1).trim();
 
-  return timingSafeEqual(login, expectedLogin) && timingSafeEqual(password, expectedPassword);
+  const loginOk = timingSafeEqual(login.toLowerCase(), expectedLogin.toLowerCase());
+  const passwordOk = timingSafeEqual(password, expectedPassword);
+  if (!loginOk || !passwordOk) {
+    // For the Vercel logs: which part did not match (never the values).
+    console.warn(
+      `[1c-exchange] auth failed: login ${loginOk ? "ok" : "differs"}, password ${passwordOk ? "ok" : "differs"} (got ${password.length} chars, expected ${expectedPassword.length})`
+    );
+    return "wrong";
+  }
+  return "ok";
+}
+
+export function checkBasicAuth(req: Request): boolean {
+  return checkBasicAuthDetailed(req) === "ok";
 }
 
 export function checkIpAllowed(req: Request): boolean {

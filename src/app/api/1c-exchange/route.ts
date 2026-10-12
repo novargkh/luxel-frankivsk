@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import {
   EXCHANGE_COOKIE_NAME,
   buildQueryResponse,
-  checkBasicAuth,
+  checkBasicAuthDetailed,
   checkIpAllowed,
   confirmSuccess,
   createSessionCookieValue,
@@ -58,8 +58,15 @@ async function handle(req: Request): Promise<NextResponse> {
     return text("failure\nДоступ заборонено", 403);
   }
 
-  if (!checkBasicAuth(req)) {
-    return new NextResponse("failure\nНеправильний логін або пароль", {
+  const auth = checkBasicAuthDetailed(req);
+  if (auth !== "ok") {
+    const why =
+      auth === "not-configured"
+        ? "На сайті не задано ONE_C_EXCHANGE_LOGIN / ONE_C_EXCHANGE_PASSWORD (Vercel → Environment Variables, потім Redeploy)"
+        : auth === "no-credentials"
+          ? "BAF не передав логін і пароль"
+          : "Неправильний логін або пароль";
+    return new NextResponse(`failure\n${why}`, {
       status: 401,
       headers: {
         "Content-Type": "text/plain; charset=utf-8",
