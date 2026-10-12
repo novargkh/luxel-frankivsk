@@ -8,6 +8,7 @@ import {
   Check,
   CircleNotch,
   ImageSquare,
+  Images,
   LockSimple,
   MagnifyingGlass,
   Microphone,
@@ -24,6 +25,7 @@ import QtyInput from "@/components/QtyInput";
 import { useCart } from "@/lib/cart";
 import { blobToWavBase64, compressImage, startRecording, type Recorder } from "@/lib/media";
 import { textMatches } from "@/lib/itemSearch";
+import { liveDictationSupported, startDictation, type Dictation } from "@/lib/speech";
 
 type Candidate = { id: string; name: string; price: number; stock: number; image: string | null; score: number };
 type Line = {
@@ -60,6 +62,18 @@ export default function QuickOrderPage() {
   const [rec, setRec] = useState<"idle" | "hold" | "locked" | "processing">("idle");
   const [secs, setSecs] = useState(0);
   const recorderRef = useRef<Recorder | null>(null);
+  // Live dictation (browser speech recognition) where available: the words
+  // appear in the text box while speaking and are checked before matching.
+  // Otherwise the audio is recorded and read by the AI model.
+  const [live, setLive] = useState(false);
+  const dictRef = useRef<Dictation | null>(null);
+  const textBase = useRef("");
+  // What the AI heard in a recording, shown so the person can check it.
+  const [heard, setHeard] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLive(liveDictationSupported());
+  }, []);
   const pressStart = useRef(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,6 +88,7 @@ export default function QuickOrderPage() {
   useEffect(() => {
     return () => {
       recorderRef.current?.cancel();
+      dictRef.current?.abort();
       if (timer.current) clearInterval(timer.current);
     };
   }, []);
@@ -90,6 +105,7 @@ export default function QuickOrderPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || "Не вдалося розпізнати");
+      if (source === "voice") setHeard(typeof data.transcript === "string" ? data.transcript : null);
       const items = (data.items ?? []) as (Omit<Line, "key" | "source" | "chosen" | "fresh" | "qtyGuessed"> & {
         qtyMissing?: boolean;
       })[];
@@ -161,6 +177,38 @@ export default function QuickOrderPage() {
   // ── microphone: hold to talk, or tap to lock ──────────────────────
   async function begin() {
     setError("");
+    if (live) {
+      try {
+        textBase.current = text.trim() ? text.trim() + "\n" : "";
+        setShowText(true);
+        dictRef.current = startDictation({
+          onText: (t) => setText(textBase.current + t),
+          onEnd: (t, err) => {
+            dictRef.current = null;
+            if (timer.current) clearInterval(timer.current);
+            timer.current = null;
+            setRec("idle");
+            if (err === "not-allowed" || err === "service-not-allowed") {
+              setError("Немає доступу до мікрофона. Дозвольте мікрофон для цього сайту в налаштуваннях браузера.");
+            } else if (err && !t) {
+              setError("Не вдалося розпізнати мову. Спробуйте ще раз або введіть текстом.");
+            }
+            setText(textBase.current + t);
+          },
+        });
+      } catch {
+        setLive(false);
+        return begin();
+      }
+      setSecs(0);
+      timer.current = setInterval(() => {
+        setSecs((s) => {
+          if (s + 1 >= MAX_RECORD_SEC) finish();
+          return s + 1;
+        });
+      }, 1000);
+      return true;
+    }
     try {
       recorderRef.current = await startRecording();
     } catch {
@@ -181,6 +229,11 @@ export default function QuickOrderPage() {
   async function finish() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
+    if (dictRef.current) {
+      setRec("processing");
+      dictRef.current.stop();
+      return;
+    }
     const r = recorderRef.current;
     recorderRef.current = null;
     if (!r) return;
@@ -203,6 +256,11 @@ export default function QuickOrderPage() {
   function cancelRecording() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
+    if (dictRef.current) {
+      dictRef.current.abort();
+      dictRef.current = null;
+      setText(textBase.current.trim());
+    }
     recorderRef.current?.cancel();
     recorderRef.current = null;
     setRec("idle");
@@ -266,16 +324,33 @@ export default function QuickOrderPage() {
         {/* Input panel */}
         <section className="reveal rounded-[1.75rem] glass-tray p-1.5 mb-6" style={{ ["--i" as string]: 1 }}>
           <div className="rounded-[calc(1.75rem-0.375rem)] glass-card p-4 sm:p-5">
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <label className="group cursor-pointer flex flex-col items-center justify-center gap-2 h-28 rounded-[1.25rem] bg-white/80 ring-1 ring-white text-ink active:scale-[0.97] transition-transform duration-300 ease-fluid">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <label className="group cursor-pointer flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] bg-white/80 ring-1 ring-white text-ink active:scale-[0.97] transition-transform duration-300 ease-fluid">
                 <span className="w-12 h-12 rounded-full bg-ink text-white inline-flex items-center justify-center">
                   <Camera size={22} weight="regular" />
                 </span>
-                <span className="text-sm font-medium">Фото</span>
+                <span className="text-sm font-medium">Камера</span>
                 <input
                   type="file"
                   accept="image/*"
                   capture="environment"
+                  multiple
+                  className="sr-only"
+                  onChange={(e) => {
+                    onPhotos(e.target.files);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+
+              <label className="group cursor-pointer flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] bg-white/80 ring-1 ring-white text-ink active:scale-[0.97] transition-transform duration-300 ease-fluid">
+                <span className="w-12 h-12 rounded-full bg-ink text-white inline-flex items-center justify-center">
+                  <Images size={22} weight="regular" />
+                </span>
+                <span className="text-sm font-medium">Фото з галереї</span>
+                <input
+                  type="file"
+                  accept="image/*"
                   multiple
                   className="sr-only"
                   onChange={(e) => {
@@ -293,7 +368,7 @@ export default function QuickOrderPage() {
                 onContextMenu={(e) => e.preventDefault()}
                 disabled={rec === "processing"}
                 aria-label={recording ? "Завершити запис" : "Записати голосом"}
-                className={`relative select-none touch-none flex flex-col items-center justify-center gap-2 h-28 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
+                className={`relative select-none touch-none flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
                   recording ? "bg-brand text-white ring-brand scale-[1.02]" : "bg-white/80 ring-white text-ink active:scale-[0.97]"
                 }`}
               >
@@ -328,7 +403,7 @@ export default function QuickOrderPage() {
                 type="button"
                 onClick={() => setShowText((v) => !v)}
                 aria-expanded={showText}
-                className={`flex flex-col items-center justify-center gap-2 h-28 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid active:scale-[0.97] ${
+                className={`flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid active:scale-[0.97] ${
                   showText ? "bg-ink text-white ring-ink" : "bg-white/80 ring-white text-ink"
                 }`}
               >
@@ -344,7 +419,9 @@ export default function QuickOrderPage() {
                 ? rec === "locked"
                   ? "Говоріть вільно. Натисніть мікрофон ще раз, щоб завершити."
                   : "Говоріть. Відпустіть, щоб завершити. Короткий дотик залишає запис увімкненим."
-                : "Мікрофон: утримуйте під час диктовки або торкніться, щоб диктувати без рук."}
+                : live
+                  ? "Мікрофон: торкніться і диктуйте, текст з'являтиметься нижче. Перевірте його і натисніть «Розібрати»."
+                  : "Мікрофон: утримуйте під час диктовки або торкніться, щоб диктувати без рук."}
             </p>
             {recording && (
               <div className="mt-2 text-center">
@@ -367,8 +444,8 @@ export default function QuickOrderPage() {
                 <button
                   type="button"
                   onClick={submitText}
-                  disabled={!text.trim() || busy > 0}
-                  className="mt-2 h-11 rounded-full bg-ink px-5 text-sm font-medium text-white disabled:opacity-40"
+                  disabled={!text.trim() || busy > 0 || recording}
+                  className="mt-2 h-11 rounded-full bg-brand px-6 text-sm font-semibold text-white disabled:opacity-40"
                 >
                   Розібрати
                 </button>
@@ -412,6 +489,22 @@ export default function QuickOrderPage() {
             {busy > 0 && (
               <p className="mt-3 flex items-center gap-2 text-sm text-muted">
                 <CircleNotch size={16} className="animate-spin" /> Розпізнаю...
+              </p>
+            )}
+            {heard && (
+              <p className="mt-3 text-sm text-ink/80">
+                <span className="text-muted">Почув: </span>«{heard}»
+                <button
+                  type="button"
+                  onClick={() => {
+                    setText(heard);
+                    setShowText(true);
+                    setHeard(null);
+                  }}
+                  className="ml-2 text-xs font-medium underline underline-offset-4 text-muted hover:text-ink"
+                >
+                  Виправити текстом
+                </button>
               </p>
             )}
             {error && <p className="mt-3 text-sm text-brand">{error}</p>}

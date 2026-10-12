@@ -48,7 +48,7 @@ export async function clientConflicts(data: ClientFields, selfId?: string) {
   }
   if (data.basId) {
     const other = await prisma.user.findFirst({ where: { basId: data.basId, ...notSelf }, select: { name: true } });
-    if (other) return `Код BAS ${data.basId} вже прив'язаний до клієнта «${other.name}»`;
+    if (other) return `Код BAF ${data.basId} вже прив'язаний до клієнта «${other.name}»`;
   }
   const key = phoneKey(data.phone);
   if (key) {

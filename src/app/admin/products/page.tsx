@@ -548,10 +548,10 @@ export default function AdminProductsPage() {
             <button
               onClick={() => pricesInputRef.current?.click()}
               disabled={importingPrices}
-              title="Базові ціни з прайсу BAS (Excel). Кожен клієнт бачить цю ціну мінус свою знижку"
+              title="Базові ціни з прайсу BAF (Excel). Кожен клієнт бачить цю ціну мінус свою знижку"
               className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
             >
-              {importingPrices ? "Імпорт цін..." : "Імпорт цін з BAS"}
+              {importingPrices ? "Імпорт цін..." : "Імпорт цін з BAF"}
             </button>
             <input
               ref={packagingInputRef}
@@ -751,15 +751,15 @@ export default function AdminProductsPage() {
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm"
               />
               <input
-                placeholder="Артикул (для обміну з BAS)"
-                title="Явний артикул для обміну CommerceML з BAS. Якщо не вказано — визначається автоматично з назви товару."
+                placeholder="Артикул (для обміну з BAF)"
+                title="Явний артикул для обміну CommerceML з BAF. Якщо не вказано — визначається автоматично з назви товару."
                 value={form.article}
                 onChange={(e) => setForm((f) => ({ ...f, article: e.target.value }))}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"
               />
               <input
-                placeholder="BAS ID товару"
-                title="Ідентифікатор товару в BAS — основний ключ зіставлення для обміну CommerceML. Якщо не вказано — зіставлення йде по артикулу."
+                placeholder="BAF ID товару"
+                title="Ідентифікатор товару в BAF — основний ключ зіставлення для обміну CommerceML. Якщо не вказано — зіставлення йде по артикулу."
                 value={form.basId}
                 onChange={(e) => setForm((f) => ({ ...f, basId: e.target.value }))}
                 className="border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono"

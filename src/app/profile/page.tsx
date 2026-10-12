@@ -339,7 +339,7 @@ function ProfileInner() {
                 <input value={taxCode} onChange={(e) => setTaxCode(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
               </label>
               <label className="block">
-                <span className="block text-xs font-medium text-slate-600 mb-1">Код у BAS</span>
+                <span className="block text-xs font-medium text-slate-600 mb-1">Код у BAF</span>
                 <input value={basId} onChange={(e) => setBasId(e.target.value)} className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono" />
               </label>
               <label className="block">

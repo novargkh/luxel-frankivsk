@@ -97,7 +97,7 @@ function mapBasSheet(table: string[][]) {
 }
 
 const FIELD_LABEL: Record<string, string> = {
-  code: "код BAS",
+  code: "код BAF",
   company: "назва",
   taxCode: "ЄДРПОУ",
   phone: "телефон",
@@ -167,7 +167,7 @@ export default function AdminClientsPage() {
         return;
       }
       if (!mapped.found.includes("code") && !mapped.found.includes("taxCode")) {
-        setImportError("У файлі немає колонки «Код» або «ЄДРПОУ»: за ними клієнти зіставляються з BAS.");
+        setImportError("У файлі немає колонки «Код» або «ЄДРПОУ»: за ними клієнти зіставляються з BAF.");
         return;
       }
       const res = await fetch("/api/admin/clients/import", {
@@ -240,7 +240,7 @@ export default function AdminClientsPage() {
               disabled={importing}
               className="bg-brand text-white text-sm rounded-lg px-4 py-2 hover:bg-brand-dark disabled:opacity-50"
             >
-              {importing ? "Імпорт..." : "Імпорт з BAS (Excel)"}
+              {importing ? "Імпорт..." : "Імпорт з BAF (Excel)"}
             </button>
             <button
               onClick={() => setCreating((v) => !v)}
@@ -251,8 +251,8 @@ export default function AdminClientsPage() {
           </div>
         </div>
         <p className="text-sm text-slate-500 mb-4">
-          Клієнти беруться з BAS: вивантажте список контрагентів у Excel і завантажте сюди. Повторний імпорт
-          оновлює контакти за кодом BAS. Пароль кожному видається в картці клієнта.
+          Клієнти беруться з BAF: вивантажте список контрагентів у Excel і завантажте сюди. Повторний імпорт
+          оновлює контакти за кодом BAF. Пароль кожному видається в картці клієнта.
         </p>
 
         {importError && (
@@ -283,7 +283,7 @@ export default function AdminClientsPage() {
               <input placeholder="Контактна особа" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={input} />
               <input placeholder="Телефон" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} className={input} />
               <input placeholder="Email" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className={input} />
-              <input placeholder="Код у BAS" value={form.basId} onChange={(e) => setForm({ ...form, basId: e.target.value })} className={`${input} font-mono`} />
+              <input placeholder="Код у BAF" value={form.basId} onChange={(e) => setForm({ ...form, basId: e.target.value })} className={`${input} font-mono`} />
               <input placeholder="ЄДРПОУ / ІПН" value={form.taxCode} onChange={(e) => setForm({ ...form, taxCode: e.target.value })} className={input} />
             </div>
             {error && <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">{error}</p>}
@@ -344,7 +344,7 @@ export default function AdminClientsPage() {
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Пошук: назва, телефон, email, код BAS, ЄДРПОУ"
+            placeholder="Пошук: назва, телефон, email, код BAF, ЄДРПОУ"
             className="flex-1 min-w-[14rem] border border-slate-300 rounded-lg px-3 py-2 text-sm"
           />
           <span className="text-xs text-slate-500">
@@ -356,7 +356,7 @@ export default function AdminClientsPage() {
         {loading ? (
           <p className="text-sm text-slate-500">Завантаження...</p>
         ) : shown.length === 0 ? (
-          <p className="text-sm text-slate-500">{clients.length ? "Нічого не знайдено." : "Клієнтів ще немає. Імпортуйте їх з BAS."}</p>
+          <p className="text-sm text-slate-500">{clients.length ? "Нічого не знайдено." : "Клієнтів ще немає. Імпортуйте їх з BAF."}</p>
         ) : (
           <div className="border border-slate-200 bg-white rounded-xl overflow-x-auto">
             <table className="w-full text-sm">
@@ -364,7 +364,7 @@ export default function AdminClientsPage() {
                 <tr>
                   <th className="text-left px-3 py-2 font-medium">Клієнт</th>
                   <th className="text-left px-3 py-2 font-medium">Контакти</th>
-                  <th className="text-left px-3 py-2 font-medium">Код BAS</th>
+                  <th className="text-left px-3 py-2 font-medium">Код BAF</th>
                   <th className="text-left px-3 py-2 font-medium">Знижка</th>
                   <th className="text-left px-3 py-2 font-medium">Адрес</th>
                   <th className="text-left px-3 py-2 font-medium">Замовлень</th>

@@ -6,6 +6,7 @@ import { availabilityOf } from "@/lib/availability";
 import {
   QuickOrderError,
   articleHints,
+  vocabularyHints,
   buildIndex,
   matchLines,
   readWithAI,
@@ -77,16 +78,18 @@ export async function POST(req: Request) {
   );
 
   let lines: ParsedLine[];
+  let transcript: string | null = null;
   try {
-    lines = await readWithAI(
+    ({ lines, transcript } = await readWithAI(
       {
         text: text || undefined,
         imageDataUrl: image || undefined,
         audioBase64: audio || undefined,
         audioFormat: format,
       },
-      articleHints(index)
-    );
+      articleHints(index),
+      vocabularyHints(index)
+    ));
   } catch (e) {
     if (e instanceof QuickOrderError) {
       return NextResponse.json({ error: e.message }, { status: e.status });
@@ -95,5 +98,5 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Не вдалося розпізнати. Спробуйте ще раз." }, { status: 500 });
   }
 
-  return NextResponse.json({ items: matchLines(lines, index) });
+  return NextResponse.json({ items: matchLines(lines, index), transcript });
 }

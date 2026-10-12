@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       continue;
     }
     if (!code && !taxCode) {
-      skipped.push(`${label}: немає коду BAS і ЄДРПОУ`);
+      skipped.push(`${label}: немає коду BAF і ЄДРПОУ`);
       continue;
     }
 

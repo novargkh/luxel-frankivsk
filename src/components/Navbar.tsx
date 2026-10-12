@@ -6,7 +6,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import { CaretDown, CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, Microphone, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
@@ -266,6 +266,22 @@ function NavbarInner({ session }: { session: Session }) {
         </nav>
 
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
+          {/* Quick order by voice / photo / text */}
+          <Link
+            href="/quick-order"
+            aria-label="Швидке замовлення: голос або фото"
+            title="Швидке замовлення: голос або фото"
+            className={`relative h-10 sm:h-11 min-w-10 sm:min-w-11 shrink-0 inline-flex items-center justify-center gap-2 rounded-full xl:pl-1.5 xl:pr-4 transition-colors duration-300 ease-fluid ${
+              pathname === "/quick-order" ? "bg-brand text-white" : "bg-white/60 ring-1 ring-white/70 text-brand hover:bg-white/90"
+            }`}
+          >
+            <span className={`inline-flex items-center justify-center rounded-full xl:w-8 xl:h-8 ${pathname === "/quick-order" ? "" : "xl:bg-brand xl:text-white"}`}>
+              <Microphone size={18} weight="bold" />
+            </span>
+            <span className={`hidden xl:inline text-[14px] font-medium whitespace-nowrap ${pathname === "/quick-order" ? "" : "text-ink"}`}>
+              Швидке замовлення
+            </span>
+          </Link>
           <Contacts />
           <Inbox userKey={userKey} />
           <Link

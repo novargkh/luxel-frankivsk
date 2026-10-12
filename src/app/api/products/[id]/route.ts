@@ -75,7 +75,7 @@ export async function PATCH(
       const existing = await prisma.product.findUnique({ where: { basId: trimmed } });
       if (existing && existing.id !== id) {
         return NextResponse.json(
-          { error: "Цей BAS ID вже прив'язаний до іншого товару" },
+          { error: "Цей BAF ID вже прив'язаний до іншого товару" },
           { status: 400 }
         );
       }

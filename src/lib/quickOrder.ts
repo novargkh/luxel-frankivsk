@@ -97,6 +97,24 @@ export function articleHints(index: Indexed[]): string {
   return [...seen].join(", ");
 }
 
+// Series / brand words from product names (JAZZ, OPERA, AURA, HPF...):
+// helps speech recognition spell them as in the catalog.
+export function vocabularyHints(index: Indexed[]): string {
+  const counts = new Map<string, number>();
+  for (const p of index) {
+    for (const w of p.name.match(/\b[A-Z][A-Z0-9-]{2,}\b/g) ?? []) {
+      if (/^\d/.test(w) || w === "LUXEL") continue;
+      counts.set(w, (counts.get(w) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .filter(([, n]) => n >= 2)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 80)
+    .map(([w]) => w)
+    .join(", ");
+}
+
 function scoreProduct(p: Indexed, line: ParsedLine): number {
   let score = 0;
   const ca = line.article ? compact(line.article) : "";
@@ -165,8 +183,10 @@ export function matchLines(lines: ParsedLine[], index: Indexed[]): MatchedLine[]
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 export const TEXT_MODEL = process.env.QUICK_ORDER_MODEL || "google/gemini-3.5-flash-lite";
 export const VISION_MODEL = process.env.QUICK_ORDER_VISION_MODEL || "google/gemini-3.8-flash";
+// Speech needs the stronger model: the light one mishears numbers and codes.
+export const AUDIO_MODEL = process.env.QUICK_ORDER_AUDIO_MODEL || VISION_MODEL;
 
-function systemPrompt(hints: string) {
+function systemPrompt(hints: string, vocab: string, audio: boolean) {
   return `Ти допомагаєш оптовому клієнту компанії LUXEL (електротовари: лампи, світильники, розетки, вимикачі, подовжувачі) скласти замовлення.
 Тобі дають надиктований текст, аудіо або фото (полиця, упаковка, сторінка зошита, накладна).
 Твоє завдання лише ВИПИСАТИ позиції та кількості, нічого не вигадуючи.
@@ -176,8 +196,18 @@ function systemPrompt(hints: string) {
 - Числа, сказані словами, перетворюй у цифри: "дев'ять шістсот один" → "9601", "двадцять штук" → 20.
 - Артикул LUXEL зазвичай у дужках у назві товару. Ось відомі артикули каталогу (використовуй точне написання, якщо почуте/побачене явно відповідає одному з них): ${hints}
 - Якщо на фото кілька однакових товарів на полиці, це ОДНА позиція; кількість тоді null (продавець вкаже сам), якщо поруч не написано число.
-- Не додавай позицій, яких немає у вхідних даних. Якщо нічого не знайдено, поверни порожній список.
-Відповідай ТІЛЬКИ JSON: {"items":[{"text":"...","article":"..." або null,"qty":число або null}]}`;
+- Назви серій і моделей у каталозі пишуться латиницею: ${vocab}. Якщо почув щось схоже («джаз», «опера», «аура»), пиши як у каталозі (JAZZ, OPERA, AURA).
+- Не додавай позицій, яких немає у вхідних даних. Якщо нічого не знайдено, поверни порожній список.${
+    audio
+      ? `
+Для аудіо:
+- Мова — українська, російська або суржик, можливий шум магазину. Слухай уважно цифри.
+- Артикул часто диктують по цифрах або парами: «дев'ять шість нуль один», «дев'яносто шість нуль один», «дев'ять шістсот один» — це все "9601". «Нуль», «ноль», «о» — це 0.
+- Позиції розділяють паузою, словами «далі», «наступне», «ще», «і». Кількість зазвичай іде після артикула: «...двадцять штук», «...по десять», «...ящик» (якщо сказано «ящик» без числа, qty = null).
+- Поле "transcript" — дослівний текст того, що почув (цифри пиши цифрами), щоб людина могла перевірити.`
+      : ""
+  }
+Відповідай ТІЛЬКИ JSON: {${audio ? '"transcript":"...",' : ""}"items":[{"text":"...","article":"..." або null,"qty":число або null}]}`;
 }
 
 type Content =
@@ -193,8 +223,9 @@ export class QuickOrderError extends Error {
 
 export async function readWithAI(
   input: { text?: string; imageDataUrl?: string; audioBase64?: string; audioFormat?: string },
-  hints: string
-): Promise<ParsedLine[]> {
+  hints: string,
+  vocab = ""
+): Promise<{ lines: ParsedLine[]; transcript: string | null }> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) {
     throw new QuickOrderError("Розпізнавання ще не налаштоване: немає ключа OPENROUTER_API_KEY у Vercel.", 503);
@@ -204,6 +235,7 @@ export async function readWithAI(
   let model = TEXT_MODEL;
   if (input.text) content.push({ type: "text", text: `Замовлення:\n${input.text}` });
   if (input.audioBase64) {
+    model = AUDIO_MODEL;
     content.push({ type: "text", text: "Аудіо з надиктованим замовленням (українська або російська мова):" });
     content.push({ type: "input_audio", input_audio: { data: input.audioBase64, format: input.audioFormat || "wav" } });
   }
@@ -226,7 +258,7 @@ export async function readWithAI(
       temperature: 0,
       response_format: { type: "json_object" },
       messages: [
-        { role: "system", content: systemPrompt(hints) },
+        { role: "system", content: systemPrompt(hints, vocab, !!input.audioBase64) },
         { role: "user", content },
       ],
     }),
@@ -242,7 +274,17 @@ export async function readWithAI(
 
   const data = await res.json();
   const raw: string = data?.choices?.[0]?.message?.content ?? "";
-  return parseItems(raw);
+  return { lines: parseItems(raw), transcript: parseTranscript(raw) };
+}
+
+function parseTranscript(raw: string): string | null {
+  const m = raw.match(/"transcript"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+  if (!m) return null;
+  try {
+    return (JSON.parse(`"${m[1]}"`) as string).slice(0, 1000) || null;
+  } catch {
+    return null;
+  }
 }
 
 export function parseItems(raw: string): ParsedLine[] {

@@ -162,7 +162,7 @@ export function matchClient(user: Pick<User, "basId" | "email" | "phone" | "name
   }
   return {
     ok: false,
-    reason: `Клієнта "${user.name}" не можна зіставити з BAS: немає BAS ID і немає телефону для пошуку за email+телефон`,
+    reason: `Клієнта "${user.name}" не можна зіставити з BAF: немає BAF ID і немає телефону для пошуку за email+телефон`,
   };
 }
 
@@ -185,7 +185,7 @@ export function matchProduct(product: Pick<Product, "id" | "basId" | "article" |
   }
   return {
     ok: false,
-    reason: `Товар "${product.name}" (${product.id}) не можна зіставити з BAS: немає BAS ID і не вдалось визначити артикул`,
+    reason: `Товар "${product.name}" (${product.id}) не можна зіставити з BAF: немає BAF ID і не вдалось визначити артикул`,
   };
 }
 
@@ -372,7 +372,7 @@ async function healStaleSendingOrders(): Promise<void> {
     where: { basStatus: "SENDING", basSentAt: { lt: cutoff } },
     data: {
       basStatus: "ERROR",
-      basError: "Не отримано підтвердження від BAS (mode=success) протягом очікуваного часу — повторна спроба",
+      basError: "Не отримано підтвердження від BAF (mode=success) протягом очікуваного часу — повторна спроба",
     },
   });
 }
