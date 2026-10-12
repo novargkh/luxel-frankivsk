@@ -204,8 +204,13 @@ export default function QuickOrderPage() {
               setText(textBase.current.trim());
               return;
             }
-            if (err === "not-allowed" || err === "service-not-allowed") {
-              setError("Немає доступу до мікрофона. Дозвольте мікрофон для цього сайту в налаштуваннях браузера.");
+            if (!t.trim() && (err === "not-allowed" || err === "service-not-allowed")) {
+              // The phone's own speech recognition is off or blocked: the
+              // next tap records audio and sends it to the AI instead.
+              setLive(false);
+              setError(
+                "Розпізнавання мови в браузері недоступне. Натисніть «AI» ще раз — запис розпізнає AI. Якщо не спрацює, дозвольте мікрофон для сайту в налаштуваннях браузера."
+              );
             } else if (err && !t) {
               setError("Не вдалося розпізнати мову. Спробуйте ще раз або введіть текстом.");
             }

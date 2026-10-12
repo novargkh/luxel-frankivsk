@@ -54,6 +54,12 @@ export function startDictation(opts: {
   let error: string | undefined;
   let stopped = false;
   let done = false;
+  // Safari ends a session on a pause and refuses to start a new one
+  // without a tap ("not-allowed"). That is the end of dictation, not a
+  // missing microphone, once some words were heard.
+  let over = false;
+  let heardSinceStart = false;
+  let lastError = "";
   let guard: ReturnType<typeof setTimeout> | null = null;
 
   const text = () => (finalText + (interim ? " " + interim : "")).trim();
@@ -84,20 +90,28 @@ export function startDictation(opts: {
       if (r.isFinal) finalText += (finalText && !finalText.endsWith(" ") ? " " : "") + t.trim();
       else interim += t;
     }
+    heardSinceStart = true;
     opts.onText(text());
   };
   rec.onerror = (e) => {
+    lastError = e.error;
     // "no-speech" after a pause is normal; keep listening until stopped.
-    if (e.error !== "no-speech" && e.error !== "aborted") error = e.error;
+    if (e.error === "no-speech" || e.error === "aborted") return;
+    if (text()) over = true;
+    else error = e.error;
   };
   rec.onend = () => {
     // Some browsers end continuous mode after a pause: restart until the
-    // person taps stop. Words heard so far are kept as final.
-    if (!stopped && !error) {
+    // person taps stop, but only if the last session heard something (or
+    // was plain silence), so a refused restart can't loop.
+    const canRestart = heardSinceStart || lastError === "no-speech";
+    if (!stopped && !error && !over && canRestart) {
       if (interim) {
         finalText += (finalText ? " " : "") + interim.trim();
         interim = "";
       }
+      heardSinceStart = false;
+      lastError = "";
       try {
         rec.start();
         return;
