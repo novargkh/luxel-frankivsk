@@ -9,9 +9,7 @@ import {
   CircleNotch,
   ImageSquare,
   Images,
-  Stop,
   MagnifyingGlass,
-  Microphone,
   Minus,
   Plus,
   Question,
@@ -365,34 +363,30 @@ export default function QuickOrderPage() {
                 />
               </label>
 
+              {/* Voice: an "AI" badge that stays pressed while listening and
+                  is released by the second tap. No red, no microphone icon. */}
               <button
                 type="button"
                 onClick={toggleMic}
                 aria-pressed={recording}
                 disabled={rec === "processing"}
-                aria-label={recording ? "Завершити запис" : "Записати голосом"}
-                className={`relative select-none touch-none flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
-                  recording ? "bg-brand text-white ring-brand scale-[1.02]" : "bg-white/80 ring-white text-ink active:scale-[0.97]"
+                aria-label={recording ? "Вимкнути AI-розпізнавання голосу" : "Увімкнути AI-розпізнавання голосу"}
+                className={`relative select-none touch-manipulation flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
+                  recording ? "bg-ink text-white ring-ink shadow-inner" : "bg-white/80 ring-white text-ink active:scale-[0.97]"
                 }`}
               >
-                {recording && (
-                  <span aria-hidden="true" className="env-ripple absolute inset-0 rounded-[1.25rem]" />
-                )}
                 <span
-                  className={`w-12 h-12 rounded-full inline-flex items-center justify-center ${
-                    recording ? "bg-white/20" : "bg-ink text-white"
+                  className={`relative w-12 h-12 rounded-full inline-flex items-center justify-center text-[15px] font-bold tracking-tight ${
+                    recording ? "bg-white text-ink" : "bg-ink text-white"
                   }`}
                 >
-                  {rec === "processing" ? (
-                    <CircleNotch size={22} className="animate-spin" />
-                  ) : recording ? (
-                    <Stop size={22} weight="fill" />
-                  ) : (
-                    <Microphone size={22} weight={recording ? "fill" : "regular"} />
+                  {recording && (
+                    <span aria-hidden="true" className="absolute inset-0 rounded-full ring-2 ring-white/70 animate-ping" />
                   )}
+                  {rec === "processing" ? <CircleNotch size={22} className="animate-spin" /> : "AI"}
                 </span>
                 <span className="text-sm font-medium tabular">
-                  {recording ? `Стоп · ${secs}с` : rec === "processing" ? "Обробка..." : "Голос"}
+                  {recording ? `Слухаю · ${secs}с` : rec === "processing" ? "Обробка..." : "Голос"}
                 </span>
               </button>
 
@@ -413,10 +407,10 @@ export default function QuickOrderPage() {
 
             <p className="mt-3 text-center text-xs text-muted">
               {recording
-                ? "Говоріть: артикул і кількість. Натисніть «Стоп», щоб завершити."
+                ? "AI слухає: називайте артикул і кількість. Натисніть «AI» ще раз, щоб вимкнути."
                 : live
-                  ? "Голос: натисніть і диктуйте, текст з'являтиметься нижче. Перевірте його і натисніть «Розібрати»."
-                  : "Голос: натисніть, щоб почати, і ще раз, щоб завершити."}
+                  ? "Голос: натисніть «AI» і диктуйте, текст з'являтиметься нижче. Натисніть «AI» ще раз, щоб вимкнути."
+                  : "Голос: натисніть «AI», щоб увімкнути, і ще раз, щоб вимкнути."}
             </p>
             {recording && (
               <div className="mt-2 text-center">
