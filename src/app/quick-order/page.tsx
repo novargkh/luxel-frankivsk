@@ -52,6 +52,29 @@ const MAX_RECORD_SEC = 90;
 const USE_LIVE_DICTATION = false;
 const MAX_PHOTOS = 10;
 
+// Why the microphone did not start, in words a shop owner can act on.
+function micErrorText(e: unknown): string {
+  const name = (e as { name?: string } | null)?.name ?? "";
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const iphone = /iPhone|iPad|iPod/.test(ua);
+  const inApp = /FBAN|FBAV|Instagram|Telegram|Viber|Line\/|wv\)/i.test(ua);
+  if (inApp || typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+    return "Цей браузер не дає доступу до мікрофона (наприклад, вбудований браузер Telegram чи Viber). Відкрийте сайт у Safari або Chrome.";
+  }
+  if (name === "NotAllowedError" || name === "SecurityError") {
+    return iphone
+      ? "Мікрофон заблоковано для сайту. На iPhone: натисніть «аА» зліва в адресному рядку → «Параметри вебсайту» → «Мікрофон» → «Дозволити», потім оновіть сторінку. Або: Параметри → Safari → Мікрофон → «Запитувати»."
+      : "Мікрофон заблоковано для сайту. Натисніть значок замка зліва від адреси → «Мікрофон» → «Дозволити» і оновіть сторінку.";
+  }
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "Мікрофон не знайдено на цьому пристрої.";
+  }
+  if (name === "NotReadableError" || name === "AbortError") {
+    return "Мікрофон зайнятий іншою програмою (дзвінок, диктофон, інша вкладка). Закрийте її і спробуйте ще раз.";
+  }
+  return `Не вдалося увімкнути мікрофон${name ? ` (${name})` : ""}. Спробуйте оновити сторінку або введіть замовлення текстом.`;
+}
+
 export default function QuickOrderPage() {
   const router = useRouter();
   const { cart, setQty } = useCart();
@@ -248,8 +271,8 @@ export default function QuickOrderPage() {
     }
     try {
       recorderRef.current = await startRecording();
-    } catch {
-      setError("Немає доступу до мікрофона. Дозвольте мікрофон для цього сайту в налаштуваннях браузера.");
+    } catch (e) {
+      setError(micErrorText(e));
       setRec("idle");
       return false;
     }
