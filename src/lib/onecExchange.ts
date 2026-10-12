@@ -150,19 +150,21 @@ export function readCookie(req: Request, name: string): string | undefined {
 // ---------------------------------------------------------------------
 
 export type ClientMatch =
-  | { ok: true; basId: string | null; email: string | null; phone: string }
+  | { ok: true; basId: string | null; email: string | null; phone: string; taxCode: string | null }
   | { ok: false; reason: string };
 
-export function matchClient(user: Pick<User, "basId" | "email" | "phone" | "name">): ClientMatch {
-  if (user.basId) {
-    return { ok: true, basId: user.basId, email: user.email, phone: user.phone ?? "" };
-  }
-  if (user.email && user.phone) {
-    return { ok: true, basId: null, email: user.email, phone: user.phone };
+// BAF finds the client by its code (BAF ID) when the site has it, else by
+// ЄДРПОУ / ІПН (<ИНН>), else by phone / email. Any one of them is enough.
+export function matchClient(
+  user: Pick<User, "basId" | "email" | "phone" | "name"> & { taxCode?: string | null }
+): ClientMatch {
+  const taxCode = user.taxCode?.trim() || null;
+  if (user.basId || taxCode || user.phone) {
+    return { ok: true, basId: user.basId ?? null, email: user.email, phone: user.phone ?? "", taxCode };
   }
   return {
     ok: false,
-    reason: `Клієнта "${user.name}" не можна зіставити з BAF: немає BAF ID і немає телефону для пошуку за email+телефон`,
+    reason: `Клієнта "${user.name}" не можна зіставити з BAF: немає ні коду BAF, ні ЄДРПОУ, ні телефону`,
   };
 }
 
@@ -313,6 +315,7 @@ export function buildOrdersXml(orders: OrderForExchange[]): string {
           Роль: "Покупатель",
           Наименование: order.user.company || order.user.name,
           ПолноеНаименование: order.user.company || order.user.name,
+          ...(clientMatch.taxCode ? { ИНН: clientMatch.taxCode } : {}),
           Контакты: {
             Контакт: [
               ...(clientMatch.email ? [{ Тип: "Почта", Значение: clientMatch.email }] : []),

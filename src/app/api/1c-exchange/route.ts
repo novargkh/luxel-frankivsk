@@ -46,7 +46,11 @@ async function handle(req: Request): Promise<NextResponse> {
   const type = url.searchParams.get("type");
   const mode = url.searchParams.get("mode");
 
-  if (type !== "sale") {
+  // "sale" = orders (the real work). "catalog" = BAF uploading goods and
+  // prices: the site takes those from its own imports, so a catalog upload
+  // is accepted and ignored instead of failing the whole exchange when the
+  // "вивантажувати товари" box is left on in BAF.
+  if (type !== "sale" && type !== "catalog") {
     return text(`failure\nНепідтримуваний тип обміну: ${type ?? ""}`);
   }
 
@@ -84,7 +88,26 @@ async function handle(req: Request): Promise<NextResponse> {
   }
 
   if (mode === "init") {
-    return text("zip=no\nfile_limit=10485760");
+    // Under Vercel's 4.5 MB request limit, so BAF splits bigger files.
+    return text("zip=no\nfile_limit=4000000");
+  }
+
+  // BAF sends a file: on "sale" its own copy of the orders (statuses after
+  // it processed them), on "catalog" goods and prices. Neither changes
+  // anything on the site: read it, log the size and confirm.
+  if (mode === "file") {
+    const body = await req.arrayBuffer().catch(() => new ArrayBuffer(0));
+    console.log(
+      `[1c-exchange] type=${type} mode=file: ${url.searchParams.get("filename") ?? "?"} ${body.byteLength} bytes (ignored)`
+    );
+    return text("success");
+  }
+  if (mode === "import" || mode === "complete" || mode === "deactivate") {
+    return text("success");
+  }
+
+  if (type === "catalog") {
+    return text("success");
   }
 
   if (mode === "query") {
