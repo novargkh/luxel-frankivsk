@@ -416,3 +416,46 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
+
+/* "AI" badge (header + voice tile on /quick-order): a soft indigo-to-sky
+   gradient instead of the plain black circle; while listening it shifts
+   slowly and sends out a light halo. */
+.ai-orb {
+  background: linear-gradient(135deg, #6d5dfc 0%, #8b5cf6 45%, #22b8f0 100%);
+  background-size: 200% 200%;
+  background-position: 0% 50%;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.35), 0 4px 14px -6px rgb(109 93 252 / 0.6);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ai-orb-live {
+    animation: ai-shift 2.4s ease-in-out infinite;
+  }
+  .ai-orb-live::after {
+    content: "";
+    position: absolute;
+    inset: -5px;
+    border-radius: inherit;
+    border: 2px solid rgb(109 93 252 / 0.45);
+    animation: ai-halo 1.6s ease-out infinite;
+    pointer-events: none;
+  }
+}
+@keyframes ai-shift {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+@keyframes ai-halo {
+  from {
+    opacity: 0.9;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.3);
+  }
+}

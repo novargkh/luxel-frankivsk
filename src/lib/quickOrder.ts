@@ -39,14 +39,33 @@ export type MatchedLine = {
   qtyMissing: boolean;
   status: MatchStatus;
   /** Best candidates, best first (max 4). */
-  candidates: { id: string; name: string; price: number; stock: number; image: string | null; score: number }[];
+  candidates: {
+    id: string;
+    name: string;
+    price: number;
+    stock: number;
+    image: string | null;
+    score: number;
+  }[];
 };
 
 // ── text normalisation ─────────────────────────────────────────────
 
 // Cyrillic letters that look like Latin ones in codes ("С" in "50С").
 const LOOKALIKE: Record<string, string> = {
-  а: "a", в: "b", е: "e", к: "k", м: "m", н: "h", о: "o", р: "p", с: "c", т: "t", у: "y", х: "x", і: "i",
+  а: "a",
+  в: "b",
+  е: "e",
+  к: "k",
+  м: "m",
+  н: "h",
+  о: "o",
+  р: "p",
+  с: "c",
+  т: "t",
+  у: "y",
+  х: "x",
+  і: "i",
 };
 
 export function compact(s: string): string {
@@ -57,25 +76,53 @@ export function compact(s: string): string {
 }
 
 const STOP = new Set([
-  "luxel", "led", "світлодіодна", "світлодіодний", "світлодіодне", "лампа", "шт", "штук", "штуки",
-  "та", "і", "з", "із", "для", "на", "в", "у",
+  "luxel",
+  "led",
+  "світлодіодна",
+  "світлодіодний",
+  "світлодіодне",
+  "лампа",
+  "шт",
+  "штук",
+  "штуки",
+  "та",
+  "і",
+  "з",
+  "із",
+  "для",
+  "на",
+  "в",
+  "у",
 ]);
 
 function tokens(s: string): string[] {
-  return s
-    .toLowerCase()
-    // Glue numbers to their units so "5 метрів", "5м" and "5М" all become "5м",
-    // "55 ват" / "55W" -> "55w".
-    .replace(/(\d+(?:[.,]\d+)?)\s*(?:метр[а-яіїєґ]*|м)(?![a-zа-яіїєґ])/giu, "$1м")
-    .replace(/(\d+(?:[.,]\d+)?)\s*(?:ват[а-яіїєґ]*|вт|w)(?![a-zа-яіїєґ])/giu, "$1w")
-    .replace(/,/g, ".")
-    .replace(/[()/]+/g, " ")
-    .split(/\s+/)
-    .map((t) => t.trim().replace(/^[.]+|[.]+$/g, ""))
-    .filter((t) => (t.length > 1 || /^\d$/.test(t)) && !STOP.has(t));
+  return (
+    s
+      .toLowerCase()
+      // Glue numbers to their units so "5 метрів", "5м" and "5М" all become "5м",
+      // "55 ват" / "55W" -> "55w".
+      .replace(
+        /(\d+(?:[.,]\d+)?)\s*(?:метр[а-яіїєґ]*|м)(?![a-zа-яіїєґ])/giu,
+        "$1м",
+      )
+      .replace(
+        /(\d+(?:[.,]\d+)?)\s*(?:ват[а-яіїєґ]*|вт|w)(?![a-zа-яіїєґ])/giu,
+        "$1w",
+      )
+      .replace(/,/g, ".")
+      .replace(/[()/]+/g, " ")
+      .split(/\s+/)
+      .map((t) => t.trim().replace(/^[.]+|[.]+$/g, ""))
+      .filter((t) => (t.length > 1 || /^\d$/.test(t)) && !STOP.has(t))
+  );
 }
 
-type Indexed = CatalogProduct & { article: string | null; cArticle: string; cName: string; tok: Set<string> };
+type Indexed = CatalogProduct & {
+  article: string | null;
+  cArticle: string;
+  cName: string;
+  tok: Set<string>;
+};
 
 export function buildIndex(products: CatalogProduct[]): Indexed[] {
   return products.map((p) => {
@@ -93,7 +140,8 @@ export function buildIndex(products: CatalogProduct[]): Indexed[] {
 /** Short list of article codes for the AI prompt (helps it spell codes). */
 export function articleHints(index: Indexed[]): string {
   const seen = new Set<string>();
-  for (const p of index) if (p.article && p.article.length <= 24) seen.add(p.article);
+  for (const p of index)
+    if (p.article && p.article.length <= 24) seen.add(p.article);
   return [...seen].join(", ");
 }
 
@@ -120,13 +168,19 @@ function scoreProduct(p: Indexed, line: ParsedLine): number {
   const ca = line.article ? compact(line.article) : "";
   if (ca) {
     if (p.cArticle && p.cArticle === ca) score = Math.max(score, 100);
-    else if (p.cArticle && ca.length >= 3 && (p.cArticle.startsWith(ca) || ca.startsWith(p.cArticle)))
+    else if (
+      p.cArticle &&
+      ca.length >= 3 &&
+      (p.cArticle.startsWith(ca) || ca.startsWith(p.cArticle))
+    )
       score = Math.max(score, 85);
-    else if (ca.length >= 4 && p.cName.includes(ca)) score = Math.max(score, 75);
+    else if (ca.length >= 4 && p.cName.includes(ca))
+      score = Math.max(score, 75);
   }
   // Codes spoken inside the text ("розетка 9601 бронзова").
   const ct = compact(line.text);
-  if (p.cArticle && p.cArticle.length >= 3 && ct.includes(p.cArticle)) score = Math.max(score, 90);
+  if (p.cArticle && p.cArticle.length >= 3 && ct.includes(p.cArticle))
+    score = Math.max(score, 90);
 
   // Word overlap with the product name.
   const qt = tokens(`${line.text} ${line.article ?? ""}`);
@@ -134,14 +188,21 @@ function scoreProduct(p: Indexed, line: ParsedLine): number {
     let hit = 0;
     for (const t of qt) {
       if (p.tok.has(t)) hit++;
-      else if (t.length >= 4 && [...p.tok].some((pt) => pt.startsWith(t.slice(0, 4)))) hit += 0.6;
+      else if (
+        t.length >= 4 &&
+        [...p.tok].some((pt) => pt.startsWith(t.slice(0, 4)))
+      )
+        hit += 0.6;
     }
     score = Math.max(score, Math.round((hit / qt.length) * 70));
   }
   return score;
 }
 
-export function matchLines(lines: ParsedLine[], index: Indexed[]): MatchedLine[] {
+export function matchLines(
+  lines: ParsedLine[],
+  index: Indexed[],
+): MatchedLine[] {
   return lines
     .filter((l) => (l.text && l.text.trim()) || (l.article && l.article.trim()))
     .map((line) => {
@@ -157,13 +218,17 @@ export function matchLines(lines: ParsedLine[], index: Indexed[]): MatchedLine[]
         const clearWinner = !second || top.s - second.s >= 10;
         const lead = second ? top.s - second.s : top.s;
         status =
-          top.s >= 85 && clearWinner ? "exact" : top.s >= 60 && lead >= 12 ? "likely" : "choose";
+          top.s >= 85 && clearWinner
+            ? "exact"
+            : top.s >= 60 && lead >= 12
+              ? "likely"
+              : "choose";
       }
 
       return {
         text: line.text,
         article: line.article,
-        qty: Math.max(1, Math.min(9999, Math.round(line.qty ?? 1))),
+        qty: Math.max(1, Math.min(99999, Math.round(line.qty ?? 1))),
         qtyMissing: line.qty == null,
         status,
         candidates: scored.map(({ p, s }) => ({
@@ -178,11 +243,102 @@ export function matchLines(lines: ParsedLine[], index: Indexed[]): MatchedLine[]
     });
 }
 
+// ── fast path: plain "article + quantity" text ─────────────────────
+//
+// Dictation and typed orders are usually just codes and numbers
+// ("9601 20 штук 7131 по 10"). Those are read here in a few milliseconds;
+// only text with names, words for numbers or unknown codes goes to the AI.
+
+const UNIT = String.raw`(?:шт\.?|штук[аи]?|штуки|ящик(?:и|ів|а)?|уп(?:ак(?:овк[аиу]|овок)?)?\.?|пач(?:ка|ки|ок)?|pcs)`;
+const QUICK_RE = new RegExp(
+  String.raw`(\d+)\s*${UNIT}(?![\p{L}])` + // 20 шт
+    String.raw`|(?<![\p{L}])по\s+(\d+)` + // по 10
+    String.raw`|(?<![\p{L}\d])[xх×]\s*(\d+)` + // x 5
+    String.raw`|([\p{L}]{0,6}[-\s]?\d[\p{L}\d]*(?:[-–/][\p{L}\d]+)*)`, // 9601, 096C-55W, HPF-55W
+  "giu",
+);
+
+// Quantities said in words ("двадцять п'ять штук", "по десять",
+// "сорок шт"): turned into digits. Only before a unit or after "по", so
+// codes dictated in words still go to the AI.
+const NUM_WORDS: Record<string, number> = {
+  один: 1, одна: 1, одну: 1, одне: 1, одно: 1, два: 2, дві: 2, две: 2, три: 3, чотири: 4, четыре: 4,
+  "п'ять": 5, пять: 5, шість: 6, шесть: 6, сім: 7, семь: 7, вісім: 8, восемь: 8, "дев'ять": 9, девять: 9,
+  десять: 10, одинадцять: 11, одиннадцать: 11, дванадцять: 12, двенадцать: 12, тринадцять: 13,
+  тринадцать: 13, чотирнадцять: 14, четырнадцать: 14, "п'ятнадцять": 15, пятнадцать: 15,
+  шістнадцять: 16, шестнадцать: 16, сімнадцять: 17, семнадцать: 17, вісімнадцять: 18,
+  восемнадцать: 18, "дев'ятнадцять": 19, девятнадцать: 19, двадцять: 20, двадцать: 20,
+  тридцять: 30, тридцать: 30, сорок: 40, "п'ятдесят": 50, пятьдесят: 50, шістдесят: 60,
+  шестьдесят: 60, сімдесят: 70, семьдесят: 70, вісімдесят: 80, восемьдесят: 80,
+  "дев'яносто": 90, девяносто: 90, сто: 100, двісті: 200, двести: 200, триста: 300,
+  чотириста: 400, четыреста: 400, "п'ятсот": 500, пятьсот: 500, шістсот: 600, шестьсот: 600,
+  сімсот: 700, семьсот: 700, вісімсот: 800, восемьсот: 800, "дев'ятсот": 900, девятьсот: 900,
+  тисяча: 1000, тысяча: 1000, тисячу: 1000, тысячу: 1000,
+};
+const NUM_WORD = `(?:${Object.keys(NUM_WORDS).sort((a, b) => b.length - a.length).join("|")})`;
+const ANY_NUM_WORD_RE = new RegExp(String.raw`(?<![\p{L}'])${NUM_WORD}(?![\p{L}'])`, "iu");
+
+function wordsToNumber(words: string): number {
+  let total = 0;
+  for (const w of words.toLowerCase().split(/\s+/)) total += NUM_WORDS[w] ?? 0;
+  return total;
+}
+
+const WORDS_BEFORE_UNIT_RE = new RegExp(
+  String.raw`(?<![\p{L}'])${NUM_WORD}(?:\s+${NUM_WORD})*(?![\p{L}'])(?=\s*${UNIT}(?![\p{L}]))`,
+  "giu"
+);
+const WORDS_AFTER_PO_RE = new RegExp(
+  String.raw`(?<![\p{L}])(по\s+)(${NUM_WORD}(?:\s+${NUM_WORD})*)(?![\p{L}'])`,
+  "giu"
+);
+
+export function qtyWordsToDigits(text: string): string {
+  return text
+    .replace(/[’ʼ`]/g, "'")
+    .replace(WORDS_BEFORE_UNIT_RE, (m) => String(wordsToNumber(m)))
+    .replace(WORDS_AFTER_PO_RE, (_m, po: string, w: string) => po + wordsToNumber(w));
+}
+
+export function quickParseText(raw: string, index: Indexed[]): ParsedLine[] | null {
+  const text = qtyWordsToDigits(raw);
+  if (ANY_NUM_WORD_RE.test(text)) return null; // numbers in words left: the AI reads them
+  const known = new Set(index.map((p) => p.cArticle).filter(Boolean));
+  if (known.size === 0) return null;
+  const out: ParsedLine[] = [];
+  let cur: ParsedLine | null = null;
+  for (const m of text.matchAll(QUICK_RE)) {
+    const qty = m[1] ?? m[2] ?? m[3];
+    if (qty) {
+      if (!cur || cur.qty != null) return null; // quantity without a code: let the AI read it
+      cur.qty = Number(qty);
+      continue;
+    }
+    const tok = m[4].trim();
+    // A code may come with a word in front ("JAZZ 9601"): try the whole
+    // token, then the part with digits.
+    const tail = tok.split(/[\s]+/).pop() ?? tok;
+    const code = [tok, tail].find((t) => known.has(compact(t)));
+    if (code) {
+      cur = { text: code, article: code, qty: null };
+      out.push(cur);
+    } else if (/^\d{1,5}$/.test(tail) && cur && cur.qty == null) {
+      cur.qty = Number(tail); // bare number right after a code
+    } else {
+      return null; // unknown code or wording: the AI decides
+    }
+  }
+  return out.length ? out : null;
+}
+
 // ── AI reading step (OpenRouter → Gemini) ───────────────────────────
 
 const ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-export const TEXT_MODEL = process.env.QUICK_ORDER_MODEL || "google/gemini-3.5-flash-lite";
-export const VISION_MODEL = process.env.QUICK_ORDER_VISION_MODEL || "google/gemini-3.8-flash";
+const AI_TIMEOUT_MS = 40_000;
+export const TEXT_MODEL =
+  process.env.QUICK_ORDER_MODEL || "google/gemini-3.5-flash-lite";
+export const VISION_MODEL =
+  process.env.QUICK_ORDER_VISION_MODEL || "google/gemini-3.8-flash";
 // Speech needs the stronger model: the light one mishears numbers and codes.
 export const AUDIO_MODEL = process.env.QUICK_ORDER_AUDIO_MODEL || VISION_MODEL;
 
@@ -216,60 +372,115 @@ type Content =
   | { type: "input_audio"; input_audio: { data: string; format: string } };
 
 export class QuickOrderError extends Error {
-  constructor(message: string, public status = 500) {
+  constructor(
+    message: string,
+    public status = 500,
+  ) {
     super(message);
   }
 }
 
 export async function readWithAI(
-  input: { text?: string; imageDataUrl?: string; audioBase64?: string; audioFormat?: string },
+  input: {
+    text?: string;
+    imageDataUrl?: string;
+    audioBase64?: string;
+    audioFormat?: string;
+  },
   hints: string,
-  vocab = ""
+  vocab = "",
 ): Promise<{ lines: ParsedLine[]; transcript: string | null }> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) {
-    throw new QuickOrderError("Розпізнавання ще не налаштоване: немає ключа OPENROUTER_API_KEY у Vercel.", 503);
+    throw new QuickOrderError(
+      "Розпізнавання ще не налаштоване: немає ключа OPENROUTER_API_KEY у Vercel.",
+      503,
+    );
   }
 
   const content: Content[] = [];
   let model = TEXT_MODEL;
-  if (input.text) content.push({ type: "text", text: `Замовлення:\n${input.text}` });
+  if (input.text)
+    content.push({ type: "text", text: `Замовлення:\n${input.text}` });
   if (input.audioBase64) {
     model = AUDIO_MODEL;
-    content.push({ type: "text", text: "Аудіо з надиктованим замовленням (українська або російська мова):" });
-    content.push({ type: "input_audio", input_audio: { data: input.audioBase64, format: input.audioFormat || "wav" } });
+    content.push({
+      type: "text",
+      text: "Аудіо з надиктованим замовленням (українська або російська мова):",
+    });
+    content.push({
+      type: "input_audio",
+      input_audio: {
+        data: input.audioBase64,
+        format: input.audioFormat || "wav",
+      },
+    });
   }
   if (input.imageDataUrl) {
     model = VISION_MODEL;
-    content.push({ type: "text", text: "Фото товару / полиці / упаковки / запису в зошиті:" });
+    content.push({
+      type: "text",
+      text: "Фото товару / полиці / упаковки / запису в зошиті:",
+    });
     content.push({ type: "image_url", image_url: { url: input.imageDataUrl } });
   }
   if (content.length === 0) throw new QuickOrderError("Порожній запит", 400);
 
-  const res = await fetch(ENDPOINT, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${key}`,
-      "Content-Type": "application/json",
-      "X-Title": "LUXEL B2B quick order",
-    },
-    body: JSON.stringify({
-      model,
-      temperature: 0,
-      response_format: { type: "json_object" },
-      messages: [
-        { role: "system", content: systemPrompt(hints, vocab, !!input.audioBase64) },
-        { role: "user", content },
-      ],
-    }),
-  });
+  // Never keep the person waiting on a stuck request.
+  const ctrl = new AbortController();
+  const timeout = setTimeout(() => ctrl.abort(), AI_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(ENDPOINT, {
+      signal: ctrl.signal,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+        "X-Title": "LUXEL B2B quick order",
+      },
+      body: JSON.stringify({
+        model,
+        temperature: 0,
+        response_format: { type: "json_object" },
+        messages: [
+          {
+            role: "system",
+            content: systemPrompt(hints, vocab, !!input.audioBase64),
+          },
+          { role: "user", content },
+        ],
+      }),
+    });
+  } catch (e) {
+    if ((e as Error).name === "AbortError") {
+      throw new QuickOrderError(
+        "Розпізнавання триває задовго. Спробуйте ще раз або введіть артикули текстом.",
+        504,
+      );
+    }
+    throw new QuickOrderError(
+      "Сервіс розпізнавання тимчасово недоступний. Спробуйте ще раз.",
+      502,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     console.error("quick-order AI error", res.status, body.slice(0, 500));
-    if (res.status === 402) throw new QuickOrderError("На рахунку OpenRouter закінчились кошти.", 502);
-    if (res.status === 401) throw new QuickOrderError("Ключ OpenRouter недійсний.", 502);
-    throw new QuickOrderError("Сервіс розпізнавання тимчасово недоступний. Спробуйте ще раз.", 502);
+    if (res.status === 402)
+      throw new QuickOrderError(
+        "На рахунку OpenRouter закінчились кошти.",
+        502,
+      );
+    if (res.status === 401)
+      throw new QuickOrderError("Ключ OpenRouter недійсний.", 502);
+    throw new QuickOrderError(
+      "Сервіс розпізнавання тимчасово недоступний. Спробуйте ще раз.",
+      502,
+    );
   }
 
   const data = await res.json();
@@ -288,7 +499,10 @@ function parseTranscript(raw: string): string | null {
 }
 
 export function parseItems(raw: string): ParsedLine[] {
-  const jsonText = raw.replace(/^```(?:json)?/i, "").replace(/```$/, "").trim();
+  const jsonText = raw
+    .replace(/^```(?:json)?/i, "")
+    .replace(/```$/, "")
+    .trim();
   let parsed: unknown;
   try {
     parsed = JSON.parse(jsonText);
@@ -306,10 +520,18 @@ export function parseItems(raw: string): ParsedLine[] {
   return items
     .map((it) => {
       const o = it as Record<string, unknown>;
-      const qtyNum = typeof o.qty === "number" ? o.qty : typeof o.qty === "string" ? Number(o.qty) : NaN;
+      const qtyNum =
+        typeof o.qty === "number"
+          ? o.qty
+          : typeof o.qty === "string"
+            ? Number(o.qty)
+            : NaN;
       return {
         text: typeof o.text === "string" ? o.text.slice(0, 200) : "",
-        article: typeof o.article === "string" && o.article.trim() ? o.article.trim().slice(0, 40) : null,
+        article:
+          typeof o.article === "string" && o.article.trim()
+            ? o.article.trim().slice(0, 40)
+            : null,
         qty: Number.isFinite(qtyNum) && qtyNum > 0 ? qtyNum : null,
       };
     })

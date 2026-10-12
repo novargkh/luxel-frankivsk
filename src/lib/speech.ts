@@ -53,6 +53,28 @@ export function startDictation(opts: {
   let interim = "";
   let error: string | undefined;
   let stopped = false;
+  let done = false;
+  let guard: ReturnType<typeof setTimeout> | null = null;
+
+  const text = () => (finalText + (interim ? " " + interim : "")).trim();
+
+  // onEnd fires exactly once. Safari on iPhone sometimes never sends "end"
+  // after stop() (especially after an automatic restart), which left the
+  // button spinning forever: finish() is also called by a short timer.
+  function finish() {
+    if (done) return;
+    done = true;
+    if (guard) clearTimeout(guard);
+    rec.onresult = null;
+    rec.onerror = null;
+    rec.onend = null;
+    try {
+      rec.abort();
+    } catch {
+      // already stopped
+    }
+    opts.onEnd(text(), error);
+  }
 
   rec.onresult = (e) => {
     interim = "";
@@ -62,7 +84,7 @@ export function startDictation(opts: {
       if (r.isFinal) finalText += (finalText && !finalText.endsWith(" ") ? " " : "") + t.trim();
       else interim += t;
     }
-    opts.onText((finalText + (interim ? " " + interim : "")).trim());
+    opts.onText(text());
   };
   rec.onerror = (e) => {
     // "no-speech" after a pause is normal; keep listening until stopped.
@@ -70,8 +92,12 @@ export function startDictation(opts: {
   };
   rec.onend = () => {
     // Some browsers end continuous mode after a pause: restart until the
-    // person taps stop.
+    // person taps stop. Words heard so far are kept as final.
     if (!stopped && !error) {
+      if (interim) {
+        finalText += (finalText ? " " : "") + interim.trim();
+        interim = "";
+      }
       try {
         rec.start();
         return;
@@ -79,18 +105,26 @@ export function startDictation(opts: {
         // fall through to finish
       }
     }
-    opts.onEnd((finalText + (interim ? " " + interim : "")).trim(), error);
+    finish();
   };
   rec.start();
 
   return {
     stop: () => {
+      if (done) return;
       stopped = true;
-      rec.stop();
+      // Give the browser a moment to deliver the last words, then finish
+      // anyway.
+      guard = setTimeout(finish, 1200);
+      try {
+        rec.stop();
+      } catch {
+        finish();
+      }
     },
     abort: () => {
       stopped = true;
-      rec.abort();
+      finish();
     },
   };
 }

@@ -68,6 +68,7 @@ export default function QuickOrderPage() {
   const [live, setLive] = useState(false);
   const dictRef = useRef<Dictation | null>(null);
   const textBase = useRef("");
+  const cancelled = useRef(false);
   // What the AI heard in a recording, shown so the person can check it.
   const [heard, setHeard] = useState<string | null>(null);
   useEffect(() => {
@@ -89,6 +90,7 @@ export default function QuickOrderPage() {
   useEffect(() => {
     return () => {
       recorderRef.current?.cancel();
+      cancelled.current = true;
       dictRef.current?.abort();
       if (timer.current) clearInterval(timer.current);
     };
@@ -186,6 +188,7 @@ export default function QuickOrderPage() {
   async function begin() {
     setError("");
     if (live) {
+      cancelled.current = false;
       try {
         textBase.current = text.trim() ? text.trim() + "\n" : "";
         setShowText(true);
@@ -196,12 +199,29 @@ export default function QuickOrderPage() {
             if (timer.current) clearInterval(timer.current);
             timer.current = null;
             setRec("idle");
+            if (cancelled.current) {
+              cancelled.current = false;
+              setText(textBase.current.trim());
+              return;
+            }
             if (err === "not-allowed" || err === "service-not-allowed") {
               setError("Немає доступу до мікрофона. Дозвольте мікрофон для цього сайту в налаштуваннях браузера.");
             } else if (err && !t) {
               setError("Не вдалося розпізнати мову. Спробуйте ще раз або введіть текстом.");
             }
             setText(textBase.current + t);
+            // Straight to the list: no extra "Розібрати" tap after speaking.
+            const said = t.trim();
+            if (said) {
+              recognise({ text: said }, "voice")
+                .then(() => {
+                  setHeard(said);
+                  const rest = textBase.current.trim();
+                  setText(rest);
+                  if (!rest) setShowText(false);
+                })
+                .catch((e: Error) => setError(e.message));
+            }
           },
         });
       } catch {
@@ -265,6 +285,7 @@ export default function QuickOrderPage() {
     if (timer.current) clearInterval(timer.current);
     timer.current = null;
     if (dictRef.current) {
+      cancelled.current = true;
       dictRef.current.abort();
       dictRef.current = null;
       setText(textBase.current.trim());
@@ -372,20 +393,17 @@ export default function QuickOrderPage() {
                 disabled={rec === "processing"}
                 aria-label={recording ? "Вимкнути AI-розпізнавання голосу" : "Увімкнути AI-розпізнавання голосу"}
                 className={`relative select-none touch-manipulation flex flex-col items-center justify-center gap-1.5 h-24 rounded-[1.25rem] ring-1 transition-all duration-300 ease-fluid ${
-                  recording ? "bg-ink text-white ring-ink shadow-inner" : "bg-white/80 ring-white text-ink active:scale-[0.97]"
-                }`}
+                  recording ? "bg-white ring-[#c7c3ff] shadow-[0_6px_24px_-8px_rgba(99,91,255,0.45)]" : "bg-white/80 ring-white active:scale-[0.97]"
+                } text-ink`}
               >
                 <span
-                  className={`relative w-12 h-12 rounded-full inline-flex items-center justify-center text-[15px] font-bold tracking-tight ${
-                    recording ? "bg-white text-ink" : "bg-ink text-white"
+                  className={`ai-orb relative w-12 h-12 rounded-full inline-flex items-center justify-center text-[15px] font-bold tracking-tight text-white ${
+                    recording ? "ai-orb-live" : ""
                   }`}
                 >
-                  {recording && (
-                    <span aria-hidden="true" className="absolute inset-0 rounded-full ring-2 ring-white/70 animate-ping" />
-                  )}
                   {rec === "processing" ? <CircleNotch size={22} className="animate-spin" /> : "AI"}
                 </span>
-                <span className="text-sm font-medium tabular">
+                <span className={`text-sm font-medium tabular ${recording ? "text-[#4f46e5]" : ""}`}>
                   {recording ? `Слухаю · ${secs}с` : rec === "processing" ? "Обробка..." : "Голос"}
                 </span>
               </button>
@@ -407,9 +425,9 @@ export default function QuickOrderPage() {
 
             <p className="mt-3 text-center text-xs text-muted">
               {recording
-                ? "AI слухає: називайте артикул і кількість. Натисніть «AI» ще раз, щоб вимкнути."
+                ? "AI слухає: називайте артикул і кількість. Натисніть «AI» ще раз — список з'явиться одразу."
                 : live
-                  ? "Голос: натисніть «AI» і диктуйте, текст з'являтиметься нижче. Натисніть «AI» ще раз, щоб вимкнути."
+                  ? "Голос: натисніть «AI» і диктуйте, наприклад «9601 двадцять штук». Натисніть «AI» ще раз, щоб завершити."
                   : "Голос: натисніть «AI», щоб увімкнути, і ще раз, щоб вимкнути."}
             </p>
             {recording && (

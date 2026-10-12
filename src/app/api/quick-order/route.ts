@@ -10,6 +10,7 @@ import {
   buildIndex,
   matchLines,
   readWithAI,
+  quickParseText,
   type ParsedLine,
 } from "@/lib/quickOrder";
 
@@ -76,6 +77,12 @@ export async function POST(req: Request) {
       stock: availabilityOf({ stock: p.stock, boxQty, stockOverride }) === "out" ? 0 : Math.max(1, p.stock),
     }))
   );
+
+  // Codes and numbers only: read locally, no AI round trip.
+  if (text && !image && !audio) {
+    const quick = quickParseText(text, index);
+    if (quick) return NextResponse.json({ items: matchLines(quick, index), transcript: null, fast: true });
+  }
 
   let lines: ParsedLine[];
   let transcript: string | null = null;
