@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { pricingFor } from "@/lib/clientPrice";
 import { evaluatePromo } from "@/lib/promo";
 import { orderNumbers } from "@/lib/docNumber";
+import { checkOrderChallenges } from "@/lib/challenges";
 
 export async function GET() {
   const session = await auth();
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
           include: { clients: { select: { id: true } }, products: { select: { id: true } } },
         });
         // A code handed to specific clients works only for them.
-        if (!promo || (promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId))) {
+        if (!promo || promo.isTemplate || (promo.clients.length > 0 && !promo.clients.some((c) => c.id === userId))) {
           throw new Error("Промокод не знайдено");
         }
         const [usedCount, usedByClient] = await Promise.all([
@@ -173,6 +174,9 @@ export async function POST(req: Request) {
       { status: 400 }
     );
   }
+
+  // Order tasks ("Замовте товари…", "Замовлення від …"): never block the order.
+  await checkOrderChallenges(order.id).catch((e) => console.error("[tasks] order check failed", e));
 
   const numbers = await orderNumbers([order]);
   return NextResponse.json({ ...order, number: numbers.get(order.id) ?? null }, { status: 201 });

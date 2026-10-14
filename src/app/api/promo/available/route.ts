@@ -14,12 +14,14 @@ export async function GET() {
   const codes = await prisma.promoCode.findMany({
     where: {
       showToClients: true,
+      isTemplate: false,
       OR: [{ clients: { none: {} } }, { clients: { some: { id: me.id } } }],
     },
     include: {
       products: { select: { id: true, name: true }, take: 50 },
       _count: { select: { orders: true, products: true } },
       orders: { where: { userId: me.id, status: { not: "CANCELLED" } }, select: { id: true } },
+      rewardEntry: { select: { challenge: { select: { title: true } } } },
     },
     orderBy: { createdAt: "desc" },
   });
@@ -51,6 +53,9 @@ export async function GET() {
           categories: c.categories,
         },
         createdAt: c.createdAt,
+        // A reward for a completed task, not used yet: "Вхідні" in the wallet.
+        reward: c.rewardEntry ? { task: c.rewardEntry.challenge.title } : null,
+        incoming: !!c.rewardEntry && usedByMe === 0,
         status: !c.isActive
           ? "INACTIVE"
           : notStarted(c.startsAt)

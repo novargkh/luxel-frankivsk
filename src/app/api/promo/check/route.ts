@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     include: { clients: { select: { id: true } }, products: { select: { id: true } } },
   });
   // A code handed to specific clients works only for them.
-  if (!promo || (promo.clients.length > 0 && !promo.clients.some((c) => c.id === me.id))) {
+  if (!promo || promo.isTemplate || (promo.clients.length > 0 && !promo.clients.some((c) => c.id === me.id))) {
     return NextResponse.json({ valid: false, error: "Промокод не знайдено" });
   }
 

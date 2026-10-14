@@ -8,7 +8,9 @@ export async function GET() {
   const me = await sessionUser();
   if (!me?.isAdmin) return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  // Codes issued as task rewards are listed on the tasks page, not here.
   const codes = await prisma.promoCode.findMany({
+    where: { rewardEntry: { is: null } },
     include: {
       _count: { select: { orders: { where: { status: { not: "CANCELLED" } } } } },
       clients: { select: { id: true, name: true, company: true } },

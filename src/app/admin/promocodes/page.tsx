@@ -13,8 +13,7 @@ import {
   Sparkle,
   Trash,
   Users,
-  UsersThree,
-} from "@phosphor-icons/react";
+  UsersThree, Trophy} from "@phosphor-icons/react";
 import { getCategoryTree } from "@/lib/categorize";
 
 // Promo codes, modelled on OpenCart's coupons: name, code, percent or fixed
@@ -41,6 +40,7 @@ type PromoCode = {
   isActive: boolean;
   description: string | null;
   showToClients: boolean;
+  isTemplate?: boolean;
   categories: string[];
   products: ProductRef[];
   clients: Client[];
@@ -109,6 +109,7 @@ const fmt = (iso: string | null) =>
 // showToClients off = hidden; on + no clients = everyone; on + clients =
 // only those clients.
 function audienceOf(c: PromoCode): Audience {
+  if (c.isTemplate) return "REWARD";
   if (!c.showToClients) return "NONE";
   return c.clients.length > 0 ? "SELECTED" : "ALL";
 }
@@ -144,7 +145,7 @@ function formFrom(c: PromoCode, copy = false): Form {
   };
 }
 
-type Audience = "NONE" | "ALL" | "SELECTED";
+type Audience = "NONE" | "ALL" | "SELECTED" | "REWARD";
 
 const inputCls =
   "w-full h-11 rounded-2xl bg-white/80 ring-1 ring-white px-4 text-sm text-ink placeholder:text-muted focus:outline-none focus:bg-white focus:shadow-[0_0_0_4px_rgba(255,255,255,0.6),0_8px_24px_-10px_rgba(16,17,20,0.25)]";
@@ -168,6 +169,7 @@ function AudiencePicker({
     { v: "ALL", label: "Усім клієнтам", icon: <UsersThree size={16} weight="light" /> },
     { v: "SELECTED", label: "Обраним", icon: <Users size={16} weight="light" /> },
     { v: "NONE", label: "Нікому", icon: <EyeSlash size={16} weight="light" /> },
+    { v: "REWARD", label: "Нагорода за завдання", icon: <Trophy size={16} weight="light" /> },
   ];
   return (
     <div>
@@ -187,6 +189,12 @@ function AudiencePicker({
           </button>
         ))}
       </div>
+      {audience === "REWARD" && (
+        <p className="mt-2 text-xs text-muted">
+          Сам цей код не діє і клієнтам не показується. Коли клієнт виконає завдання, йому видається персональний
+          одноразовий код з такими ж умовами. Завдання налаштовуються в розділі «Завдання».
+        </p>
+      )}
       {audience === "SELECTED" && (
         <div className="mt-3 rounded-2xl bg-white/70 ring-1 ring-white p-2">
           <input
@@ -424,7 +432,9 @@ export default function AdminPromoCodesPage() {
       perClientLimit: form.perClientLimit,
       isActive: form.isActive,
       description: form.description,
-      showToClients: form.audience !== "NONE" && !(form.audience === "SELECTED" && form.clientIds.length === 0),
+      showToClients:
+        form.audience !== "NONE" && form.audience !== "REWARD" && !(form.audience === "SELECTED" && form.clientIds.length === 0),
+      isTemplate: form.audience === "REWARD",
       clientIds: form.audience === "SELECTED" ? form.clientIds : [],
     };
     const res = await fetch(form.id ? `/api/admin/promocodes/${form.id}` : "/api/admin/promocodes", {
@@ -642,8 +652,8 @@ export default function AdminPromoCodesPage() {
                         <td className="py-3 px-2">
                           <span className="block text-ink font-medium">{c.name || c.code}</span>
                           <span className="mt-0.5 text-xs text-muted flex items-center gap-1">
-                            {aud === "ALL" ? <UsersThree size={12} /> : aud === "SELECTED" ? <Users size={12} /> : <EyeSlash size={12} />}
-                            {aud === "ALL" ? "усім" : aud === "SELECTED" ? `${c.clients.length} клієнтам` : "прихований"}
+                            {aud === "ALL" ? <UsersThree size={12} /> : aud === "SELECTED" ? <Users size={12} /> : aud === "REWARD" ? <Trophy size={12} /> : <EyeSlash size={12} />}
+                            {aud === "ALL" ? "усім" : aud === "SELECTED" ? `${c.clients.length} клієнтам` : aud === "REWARD" ? "шаблон нагороди за завдання" : "прихований"}
                           </span>
                         </td>
                         <td className="py-3 px-2 font-mono text-ink">{c.code}</td>

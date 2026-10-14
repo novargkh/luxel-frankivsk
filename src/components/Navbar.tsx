@@ -6,16 +6,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { Session } from "next-auth";
-import { CaretRight, ShoppingBag, SignOut, Ticket, UserCircle } from "@phosphor-icons/react";
+import { CaretRight, ShoppingBag, SignOut, Ticket, Tray, Trophy, UserCircle } from "@phosphor-icons/react";
 import { useCart } from "@/lib/cart";
 import TabBar from "@/components/TabBar";
 import Inbox from "@/components/Inbox";
 import Contacts from "@/components/Contacts";
 import { PromoCard, usePromoWallet } from "@/components/PromoWallet";
+import { useNewTasks } from "@/lib/useTasks";
 
 const CLIENT_LINKS = [
   { href: "/", label: "Каталог" },
   { href: "/promotions", label: "Акції" },
+  { href: "/tasks", label: "Завдання" },
   { href: "/orders", label: "Мої замовлення" },
   { href: "/returns", label: "Повернення" },
 ];
@@ -50,6 +52,8 @@ function NavbarInner({ session }: { session: Session }) {
   const walletRaw = usePromoWallet(userKey);
   // Admins don't get the promo wallet / its attention indicator.
   const wallet = role0 === "ADMIN" ? { ...walletRaw, newCount: 0 } : walletRaw;
+  const newTasks = useNewTasks(userKey, role0 !== "ADMIN");
+  const attention = wallet.newCount + newTasks;
   // Menus are "open for" a specific path, so navigating anywhere else
   // closes them automatically without an effect.
   const [menuFor, setMenuFor] = useState<string | null>(null);
@@ -94,6 +98,9 @@ function NavbarInner({ session }: { session: Session }) {
     href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
   const cartActive = pathname === "/cart";
   const showPromos = !isAdmin;
+  // Task rewards not used yet go to their own "Вхідні" group on top.
+  const incoming = wallet.promos.filter((p) => p.incoming && p.usable);
+  const otherPromos = wallet.promos.filter((p) => !(p.incoming && p.usable));
 
   return (
     <header className="sticky top-0 z-40 no-print px-3 sm:px-6 pt-3">
@@ -117,6 +124,19 @@ function NavbarInner({ session }: { session: Session }) {
                 Профіль
                 <CaretRight size={14} weight="bold" className="ml-auto text-muted" />
               </Link>
+              <Link
+                href="/tasks"
+                className="flex items-center gap-3 h-14 rounded-2xl bg-white/80 ring-1 ring-white px-4 text-[17px] md:text-[15px] font-medium text-ink active:scale-[0.98] transition-transform duration-300 ease-fluid"
+              >
+                <Trophy size={22} weight="light" />
+                Завдання
+                {newTasks > 0 && (
+                  <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-brand text-white text-xs leading-[22px] text-center font-semibold tabular">
+                    {newTasks}
+                  </span>
+                )}
+                <CaretRight size={14} weight="bold" className="ml-auto text-muted" />
+              </Link>
             </div>
 
             {showPromos && (
@@ -130,11 +150,29 @@ function NavbarInner({ session }: { session: Session }) {
                     Поки що промокодів немає. Коли менеджер видасть вам промокод, він з&apos;явиться тут.
                   </p>
                 ) : (
-                  <ul className="space-y-2">
-                    {wallet.promos.map((p, i) => (
-                      <PromoCard key={p.id} promo={p} fresh={freshIds.has(p.id)} index={i} />
-                    ))}
-                  </ul>
+                  <>
+                    {incoming.length > 0 && (
+                      <div className="mb-4">
+                        <h3 className="flex items-center gap-2 text-sm font-semibold text-[#b4621b] mb-2">
+                          <Tray size={16} weight="bold" />
+                          Вхідні
+                          <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-[#f5b65a] text-white text-[11px] leading-5 text-center tabular">
+                            {incoming.length}
+                          </span>
+                        </h3>
+                        <ul className="space-y-2">
+                          {incoming.map((p, i) => (
+                            <PromoCard key={p.id} promo={p} fresh={freshIds.has(p.id)} index={i} />
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    <ul className="space-y-2">
+                      {otherPromos.map((p, i) => (
+                        <PromoCard key={p.id} promo={p} fresh={freshIds.has(p.id)} index={i + incoming.length} />
+                      ))}
+                    </ul>
+                  </>
                 )}
               </section>
             )}
@@ -173,6 +211,11 @@ function NavbarInner({ session }: { session: Session }) {
               }`}
             >
               {l.label}
+              {l.href === "/tasks" && newTasks > 0 && (
+                <span className="ml-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] leading-[18px] text-center font-semibold tabular">
+                  {newTasks}
+                </span>
+              )}
             </Link>
           ))}
 
@@ -232,20 +275,20 @@ function NavbarInner({ session }: { session: Session }) {
             aria-label={
               menuOpen
                 ? "Закрити меню"
-                : wallet.newCount > 0
-                  ? `Відкрити меню, нових промокодів: ${wallet.newCount}`
+                : attention > 0
+                  ? `Відкрити меню, нового: ${attention}`
                   : "Відкрити меню"
             }
             className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-full text-ink ${
               menuOpen ? "bg-white ring-1 ring-white" : "bg-white/60 ring-1 ring-white/70 hover:bg-white/90"
             }`}
           >
-            {wallet.newCount > 0 && !menuOpen && (
+            {attention > 0 && !menuOpen && (
               <span key={`r-${wallet.arrival}`} aria-hidden="true" className="env-ripple absolute inset-0 rounded-full" />
             )}
             <span
               key={`s-${wallet.arrival}`}
-              className={`absolute inset-0 ${wallet.newCount > 0 && !menuOpen ? "env-shake" : ""}`}
+              className={`absolute inset-0 ${attention > 0 && !menuOpen ? "env-shake" : ""}`}
             >
               <span
                 className={`absolute left-1/2 top-1/2 h-[1.5px] w-4 -translate-x-1/2 bg-current rounded-full transition-transform duration-500 ease-fluid ${
@@ -258,9 +301,9 @@ function NavbarInner({ session }: { session: Session }) {
                 }`}
               />
             </span>
-            {wallet.newCount > 0 && !menuOpen && (
+            {attention > 0 && !menuOpen && (
               <span className="pop absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-brand text-white text-[10px] leading-[18px] text-center font-semibold tabular ring-2 ring-white">
-                {wallet.newCount}
+                {attention}
               </span>
             )}
           </button>

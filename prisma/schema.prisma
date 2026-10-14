@@ -81,6 +81,7 @@ model User {
   returns    ReturnRequest[]
   profileRequests ProfileRequest[]
   clientPrices    ClientPrice[]
+  challengeEntries ChallengeEntry[]
 }
 
 // A delivery/pickup point that belongs to a client. A client with several
@@ -164,6 +165,7 @@ model Product {
   orderItems OrderItem[]
   promoCodes PromoCode[] @relation("PromoCodeProducts")
   clientPrices ClientPrice[]
+  challenges   Challenge[] @relation("ChallengeProducts")
 }
 
 model ProductImage {
@@ -250,6 +252,12 @@ model PromoCode {
   // Clients this code was handed to. Empty = every client (when shown);
   // otherwise only these clients see it and only they can apply it.
   clients User[] @relation("PromoCodeClients")
+  // A reward template: never valid by itself; personal one-time codes are
+  // issued from it when a client completes a task (Challenge).
+  isTemplate Boolean @default(false)
+  rewardFor  Challenge[] @relation("ChallengeReward")
+  // Set on a code issued as a reward: the completed task entry.
+  rewardEntry ChallengeEntry? @relation("EntryReward")
 }
 
 model Announcement {
@@ -401,4 +409,100 @@ model SyncRun {
   finishedAt DateTime?
 
   @@index([kind, startedAt])
+}
+
+// KPI tasks for clients ("Завдання"): photo of a display, an order with
+// certain products, an order over a sum. Done (and approved) = a personal
+// promo code issued from the reward template.
+enum ChallengeKind {
+  PHOTO
+  ORDER_PRODUCTS
+  ORDER_TOTAL
+}
+
+enum EntryStatus {
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model Challenge {
+  id               String        @id @default(cuid())
+  title            String
+  description      String?
+  kind             ChallengeKind
+  // PHOTO: what to photograph; ORDER_PRODUCTS: all of these in one order.
+  products         Product[]     @relation("ChallengeProducts")
+  // ORDER_PRODUCTS: at least this many of each product.
+  minQty           Int           @default(1)
+  // ORDER_TOTAL: order sum (before discount) from this amount.
+  minTotal         Float?
+  startsAt         DateTime?
+  endsAt           DateTime?
+  isActive         Boolean       @default(true)
+  // Order tasks can give the code at once, without moderation.
+  autoApprove      Boolean       @default(false)
+  // How many times one client can complete it.
+  maxPerClient     Int           @default(1)
+  rewardTemplateId String?
+  rewardTemplate   PromoCode?    @relation("ChallengeReward", fields: [rewardTemplateId], references: [id], onDelete: SetNull)
+  // Issued code valid for this many days (null = as the template).
+  rewardValidDays  Int?
+  createdAt        DateTime      @default(now())
+
+  entries ChallengeEntry[]
+}
+
+model ChallengeEntry {
+  id           String         @id @default(cuid())
+  challengeId  String
+  challenge    Challenge      @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  status       EntryStatus    @default(SUBMITTED)
+  comment      String?
+  adminComment String?
+  orderId      String?
+  promoCodeId  String?        @unique
+  promoCode    PromoCode?     @relation("EntryReward", fields: [promoCodeId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  reviewedAt   DateTime?
+
+  photos ChallengePhoto[]
+
+  @@index([challengeId, userId])
+  @@index([status])
+}
+
+// Photos clients send for a task (stored in the database: the hosting has
+// no permanent file storage). Compressed in the browser before upload.
+model ChallengePhoto {
+  id        String         @id @default(cuid())
+  entryId   String
+  entry     ChallengeEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  mime      String
+  data      Bytes
+  createdAt DateTime       @default(now())
+}
+
+// Every request BAF makes to /api/1c-exchange, for the admin "Журнал обміну"
+// (the only way to see what BAF sent without Vercel logs). Old rows are
+// pruned to the last few thousand.
+model ExchangeLog {
+  id       String   @id @default(cuid())
+  at       DateTime @default(now())
+  type     String?
+  mode     String?
+  filename String?
+  bytes    Int      @default(0)
+  status   Int      @default(200)
+  ok       Boolean  @default(true)
+  answer   String   @default("")
+  // Auth problem, without secrets: "login differs", "password differs (9 of 18 chars)"...
+  detail   String?
+  ms       Int      @default(0)
+  ip       String?
+  agent    String?
+
+  @@index([at])
 }

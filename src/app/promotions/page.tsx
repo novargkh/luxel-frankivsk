@@ -26,6 +26,7 @@ export default function PromotionsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [codes, setCodes] = useState<PromoCode[]>([]);
   const [loading, setLoading] = useState(true);
+  const [openTasks, setOpenTasks] = useState(0);
 
   useEffect(() => {
     (async () => {
@@ -34,6 +35,12 @@ export default function PromotionsPage() {
         fetch("/api/products"),
         fetch("/api/promotions"),
       ]);
+      fetch("/api/tasks")
+        .then((r) => (r.ok ? r.json() : []))
+        .then((t: { left: number; pending: boolean }[]) =>
+          setOpenTasks(Array.isArray(t) ? t.filter((x) => x.left > 0 && !x.pending).length : 0)
+        )
+        .catch(() => {});
       const allProducts: Product[] = await productsRes.json();
       setProducts(allProducts.filter((p) => p.isPromo));
       setCodes(await codesRes.json());
@@ -49,6 +56,19 @@ export default function PromotionsPage() {
         <p className="text-sm text-slate-500 mb-6">
           Актуальні знижки, промокоди та акційні товари.
         </p>
+
+        {openTasks > 0 && (
+          <Link
+            href="/tasks"
+            className="mb-6 flex items-center gap-3 rounded-2xl bg-gradient-to-r from-[#fff4e0] to-[#ffe9f0] ring-1 ring-[#f5d3a5] px-4 py-3 text-ink hover:ring-[#e0a35a]"
+          >
+            <span className="text-2xl" aria-hidden="true">🏆</span>
+            <span className="flex-1 text-sm">
+              <b>Завдання з нагородою: {openTasks}.</b> Виконайте і отримайте персональний промокод.
+            </span>
+            <span className="text-sm font-medium">Переглянути →</span>
+          </Link>
+        )}
 
         {loading ? (
           <p className="text-sm text-slate-500">Завантаження...</p>

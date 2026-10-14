@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Copy } from "@phosphor-icons/react";
+import { Check, Copy, Trophy } from "@phosphor-icons/react";
 
 export type AvailablePromo = {
   id: string;
@@ -20,6 +20,10 @@ export type AvailablePromo = {
   createdAt: string;
   status: "ACTIVE" | "INACTIVE" | "EXPIRED" | "EXHAUSTED" | "SCHEDULED";
   usable: boolean;
+  /** Issued as a reward for a completed task. */
+  reward?: { task: string } | null;
+  /** A task reward the client hasn't used yet ("Вхідні"). */
+  incoming?: boolean;
 };
 
 const POLL_MS = 60_000;
@@ -145,7 +149,9 @@ export function PromoCard({
   const st = STATUS[promo.status];
   return (
     <li
-      className={`rise rounded-[1.25rem] bg-white/85 ring-1 ring-white p-4 ${promo.usable ? "" : "opacity-60"}`}
+      className={`rise rounded-[1.25rem] p-4 ${
+        promo.incoming && promo.usable ? "bg-[#fffaf0] ring-2 ring-[#f5b65a]" : "bg-white/85 ring-1 ring-white"
+      } ${promo.usable ? "" : "opacity-60"}`}
       style={{ ["--i" as string]: index }}
     >
       <div className="flex items-center gap-2 flex-wrap">
@@ -159,6 +165,12 @@ export function PromoCard({
           </span>
         )}
       </div>
+      {promo.reward && (
+        <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-medium text-[#b4621b]">
+          <Trophy size={14} weight="fill" />
+          Нагорода за завдання «{promo.reward.task}»
+        </p>
+      )}
       {promo.description && (
         <p className="mt-1.5 text-[14px] leading-relaxed text-ink/75">{promo.description}</p>
       )}

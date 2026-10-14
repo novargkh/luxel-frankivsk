@@ -13,13 +13,14 @@ import { catalogComplete, catalogFile, catalogImport, catalogInit } from "@/lib/
 import {
   EXCHANGE_COOKIE_NAME,
   buildQueryResponse,
-  checkBasicAuthDetailed,
+  checkBasicAuthInfo,
   checkIpAllowed,
   confirmSuccess,
   createSessionCookieValue,
   readCookie,
   verifySessionCookieValue,
 } from "@/lib/onecExchange";
+import { prisma } from "@/lib/prisma";
 
 // Must run on the Node runtime (Prisma, crypto.timingSafeEqual) — this is
 // already the default for App Router API routes here, stated explicitly
@@ -44,7 +45,10 @@ function xml(body: string): NextResponse {
   });
 }
 
-async function handle(req: Request): Promise<NextResponse> {
+// What the journal records about the current request (filled by handle).
+type Note = { detail?: string | null };
+
+async function handle(req: Request, note: Note): Promise<NextResponse> {
   const url = new URL(req.url);
   const type = url.searchParams.get("type");
   const mode = url.searchParams.get("mode");
@@ -59,8 +63,10 @@ async function handle(req: Request): Promise<NextResponse> {
     return text("failure\nДоступ заборонено", 403);
   }
 
-  const auth = checkBasicAuthDetailed(req);
+  const authInfo = checkBasicAuthInfo(req);
+  const auth = authInfo.result;
   if (auth !== "ok") {
+    note.detail = authInfo.detail;
     const why =
       auth === "not-configured"
         ? "На сайті не задано ONE_C_EXCHANGE_LOGIN / ONE_C_EXCHANGE_PASSWORD (Vercel → Environment Variables, потім Redeploy)"
@@ -92,6 +98,7 @@ async function handle(req: Request): Promise<NextResponse> {
   // Every other mode requires a session established by a prior checkauth.
   const cookieValue = readCookie(req, EXCHANGE_COOKIE_NAME);
   if (!verifySessionCookieValue(cookieValue)) {
+    note.detail = cookieValue ? "cookie сесії недійсний або протермінований" : "BAF не передав cookie сесії з checkauth";
     return text("failure\nСесія недійсна або протермінована — повторіть checkauth");
   }
 
@@ -163,12 +170,88 @@ async function handle(req: Request): Promise<NextResponse> {
   return text(`failure\nНевідомий режим: ${mode ?? ""}`);
 }
 
+// Every call: never crash with an HTML 500 (BAF shows that only as "no
+// connection"), answer "failure\n<reason>" instead, and write the request
+// to the exchange journal (admin → Обмін з BAF).
+async function run(req: Request): Promise<NextResponse> {
+  const started = Date.now();
+  const note: Note = {};
+  // The row is written first and completed at the end, so a request that
+  // Vercel cuts off (timeout) still shows up in the journal.
+  const logId = await startLog(req);
+  let res: NextResponse;
+  let answer: string;
+  try {
+    res = await handle(req, note);
+    answer = res.headers.get("content-type")?.includes("xml") ? "(XML із замовленнями)" : await res.clone().text();
+  } catch (e) {
+    console.error("[1c-exchange] failed:", e);
+    const msg = e instanceof Error ? e.message : String(e);
+    answer = `failure\nПомилка на сайті: ${msg.slice(0, 300)}`;
+    note.detail = msg.slice(0, 1000);
+    res = text(answer);
+  }
+  await finishLog(logId, res.status, answer, note, Date.now() - started);
+  return res;
+}
+
+let lastPrune = 0;
+
+async function startLog(req: Request): Promise<string | null> {
+  try {
+    const url = new URL(req.url);
+    const row = await prisma.exchangeLog.create({
+      data: {
+        type: url.searchParams.get("type"),
+        mode: url.searchParams.get("mode"),
+        filename: url.searchParams.get("filename"),
+        bytes: Number(req.headers.get("content-length")) || 0,
+        status: 0,
+        ok: false,
+        answer: "(обробка не завершилась: сайт не встиг відповісти)",
+        ip: (req.headers.get("x-forwarded-for") || "").split(",")[0]?.trim() || null,
+        agent: req.headers.get("user-agent")?.slice(0, 200) ?? null,
+      },
+      select: { id: true },
+    });
+    return row.id;
+  } catch (e) {
+    console.error("[1c-exchange] journal write failed:", e);
+    return null;
+  }
+}
+
+async function finishLog(id: string | null, status: number, answer: string, note: Note, ms: number) {
+  if (!id) return;
+  try {
+    const first = answer.split("\n")[0]?.trim() ?? "";
+    await prisma.exchangeLog.update({
+      where: { id },
+      data: {
+        status,
+        ok: status < 400 && first !== "failure",
+        answer: answer.slice(0, 500),
+        detail: note.detail ?? null,
+        ms,
+      },
+    });
+    // Keep the journal small: prune now and then.
+    if (Date.now() - lastPrune > 10 * 60_000) {
+      lastPrune = Date.now();
+      const cutoff = await prisma.exchangeLog.findMany({ orderBy: { at: "desc" }, skip: 3000, take: 1, select: { at: true } });
+      if (cutoff[0]) await prisma.exchangeLog.deleteMany({ where: { at: { lte: cutoff[0].at } } });
+    }
+  } catch (e) {
+    console.error("[1c-exchange] journal write failed:", e);
+  }
+}
+
 export async function GET(req: Request) {
-  return handle(req);
+  return run(req);
 }
 
 // Some 1C/BAS client configurations issue query/success as POST — accept
 // both so the exchange isn't sensitive to that detail.
 export async function POST(req: Request) {
-  return handle(req);
+  return run(req);
 }

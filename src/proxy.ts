@@ -50,6 +50,7 @@ export default auth((req) => {
 function adminPathFor(pathname: string, params: URLSearchParams): string | null {
   if (pathname === "/orders") return "/admin/orders";
   if (pathname === "/returns") return "/admin/returns";
+  if (pathname === "/tasks") return "/admin/tasks";
   if (pathname === "/profile") {
     const client = params.get("client");
     return client ? `/admin/clients/${encodeURIComponent(client)}` : "/admin";

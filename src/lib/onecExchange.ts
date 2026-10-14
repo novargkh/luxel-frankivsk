@@ -83,35 +83,55 @@ export type AuthCheck = "ok" | "not-configured" | "no-credentials" | "wrong";
 
 // Values pasted into Vercel often carry a stray space or line break, and
 // some 1C builds write the scheme as "basic": both are tolerated.
-export function checkBasicAuthDetailed(req: Request): AuthCheck {
+/**
+ * Checks BAF's login/password. `detail` says what did not match, without
+ * secrets, for the admin exchange journal.
+ */
+export function checkBasicAuthInfo(req: Request): { result: AuthCheck; detail: string | null; login: string | null } {
   const expectedLogin = process.env.ONE_C_EXCHANGE_LOGIN?.trim();
   const expectedPassword = process.env.ONE_C_EXCHANGE_PASSWORD?.trim();
-  if (!expectedLogin || !expectedPassword) return "not-configured";
+  if (!expectedLogin || !expectedPassword) {
+    return { result: "not-configured", detail: "на сайті не задано логін/пароль обміну", login: null };
+  }
 
   const header = (req.headers.get("authorization") || "").trim();
-  if (!/^basic\s+/i.test(header)) return "no-credentials";
+  if (!header) return { result: "no-credentials", detail: "запит без логіна й пароля", login: null };
+  if (!/^basic\s+/i.test(header)) {
+    return { result: "no-credentials", detail: `непідтримувана авторизація: ${header.split(/\s/)[0].slice(0, 20)}`, login: null };
+  }
 
   let decoded: string;
   try {
     decoded = Buffer.from(header.replace(/^basic\s+/i, ""), "base64").toString("utf8");
   } catch {
-    return "wrong";
+    return { result: "wrong", detail: "пошкоджений заголовок авторизації", login: null };
   }
   const sepIdx = decoded.indexOf(":");
-  if (sepIdx === -1) return "wrong";
+  if (sepIdx === -1) return { result: "wrong", detail: "пошкоджений заголовок авторизації", login: null };
   const login = decoded.slice(0, sepIdx).trim();
   const password = decoded.slice(sepIdx + 1).trim();
 
   const loginOk = timingSafeEqual(login.toLowerCase(), expectedLogin.toLowerCase());
   const passwordOk = timingSafeEqual(password, expectedPassword);
   if (!loginOk || !passwordOk) {
-    // For the Vercel logs: which part did not match (never the values).
-    console.warn(
-      `[1c-exchange] auth failed: login ${loginOk ? "ok" : "differs"}, password ${passwordOk ? "ok" : "differs"} (got ${password.length} chars, expected ${expectedPassword.length})`
-    );
-    return "wrong";
+    const parts: string[] = [];
+    if (!loginOk) parts.push(`логін «${login.slice(0, 40)}» не збігається`);
+    if (!passwordOk) {
+      parts.push(
+        password.length === expectedPassword.length
+          ? `пароль не збігається (довжина правильна, ${password.length} симв.)`
+          : `пароль не збігається (прийшло ${password.length} симв., на сайті ${expectedPassword.length})`
+      );
+    }
+    const detail = parts.join("; ");
+    console.warn(`[1c-exchange] auth failed: ${detail}`);
+    return { result: "wrong", detail, login };
   }
-  return "ok";
+  return { result: "ok", detail: null, login };
+}
+
+export function checkBasicAuthDetailed(req: Request): AuthCheck {
+  return checkBasicAuthInfo(req).result;
 }
 
 export function checkBasicAuth(req: Request): boolean {

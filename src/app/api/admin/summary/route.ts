@@ -13,7 +13,7 @@ export async function GET() {
   const today = todayKey();
   const weekFrom = addDays(today, -6);
 
-  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew] = await Promise.all([
+  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew, taskEntries] = await Promise.all([
     prisma.order.count({ where: { status: "NEW" } }),
     prisma.returnRequest.count({ where: { status: "NEW" } }),
     prisma.profileRequest.count({ where: { status: "NEW" } }),
@@ -38,6 +38,7 @@ export async function GET() {
         items: { select: { quantity: true, priceAtOrder: true } },
       },
     }),
+    prisma.challengeEntry.count({ where: { status: "SUBMITTED" } }),
   ]);
 
   // Last 7 days, oldest first, cancelled orders left out of the sums.
@@ -68,6 +69,7 @@ export async function GET() {
     newReturns,
     openRequests,
     basErrors,
+    taskEntries,
     latestNew: latestNew.map((o) => ({
       id: o.id,
       number: numbers.get(o.id) ?? String(o.orderNumber),

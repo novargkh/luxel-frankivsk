@@ -112,19 +112,19 @@ export async function catalogComplete() {
 export async function catalogImport(filename: string, budgetMs = 25_000): Promise<string> {
   const started = Date.now();
   const run = await currentRun();
-  await unpackZips();
-
-  const short = filename.split("/").pop() ?? filename;
-  const file =
-    (await prisma.exchangeFile.findUnique({ where: { name: filename } })) ??
-    (await prisma.exchangeFile.findUnique({ where: { name: short } }));
-  if (!file) return "success"; // a picture or a file we did not keep
-
-  const xml = Buffer.from(file.data).toString("utf8");
-  const doc = parser.parse(xml) as Obj;
-  const root = (doc["КоммерческаяИнформация"] ?? {}) as Obj;
-
   try {
+    await unpackZips();
+
+    const short = filename.split("/").pop() ?? filename;
+    const file =
+      (await prisma.exchangeFile.findUnique({ where: { name: filename } })) ??
+      (await prisma.exchangeFile.findUnique({ where: { name: short } }));
+    if (!file) return "success"; // a picture or a file we did not keep
+
+    const xml = Buffer.from(file.data).toString("utf8");
+    const doc = parser.parse(xml) as Obj;
+    const root = (doc["КоммерческаяИнформация"] ?? {}) as Obj;
+
     if (root["Каталог"]) {
       const done = await importGoods(run.id, root, started, budgetMs);
       return done ? "success" : `progress\nТовари: оброблено частину, продовжую`;

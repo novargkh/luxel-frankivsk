@@ -7,6 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import { SyncBar } from "@/components/admin/SyncProgress";
 import {
+  ArrowsClockwise,
   ArrowUUpLeft,
   CalendarBlank,
   List,
@@ -17,13 +18,14 @@ import {
   SignOut,
   SquaresFour,
   Ticket,
+  Trophy,
   Truck,
   UsersThree,
   X,
   type Icon,
 } from "@phosphor-icons/react";
 
-type Counts = { newOrders: number; newReturns: number; openRequests: number; basErrors: number };
+type Counts = { newOrders: number; newReturns: number; openRequests: number; basErrors: number; taskEntries: number };
 
 type Item = { href: string; label: string; icon: Icon; badge?: keyof Counts; match?: (p: string, view: string | null) => boolean };
 
@@ -46,6 +48,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
         match: (p, v) => p === "/admin/orders" && v === "calendar",
       },
       { href: "/admin/returns", label: "Повернення", icon: ArrowUUpLeft, badge: "newReturns" },
+      { href: "/admin/tasks", label: "Завдання (KPI)", icon: Trophy, badge: "taskEntries" },
       { href: "/admin/routes", label: "Маршрути", icon: Truck },
     ],
   },
@@ -57,6 +60,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { href: "/admin/promocodes", label: "Промокоди", icon: Ticket },
       { href: "/admin/coverage", label: "Покриття", icon: MapTrifold },
       { href: "/admin/announcements", label: "Сповіщення", icon: Megaphone },
+      { href: "/admin/exchange", label: "Обмін з BAF", icon: ArrowsClockwise },
     ],
   },
 ];

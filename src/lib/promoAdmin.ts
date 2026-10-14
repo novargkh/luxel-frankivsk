@@ -17,6 +17,7 @@ export type PromoInput = {
   description?: string | null;
   showToClients?: boolean;
   clientIds?: string[];
+  isTemplate?: boolean;
 };
 
 const num = (v: unknown) => (v === null || v === undefined || v === "" ? null : Number(v));
@@ -61,6 +62,11 @@ export function parsePromoInput(body: PromoInput, creating: boolean) {
   if (body.isActive !== undefined) data.isActive = !!body.isActive;
   if (body.description !== undefined) data.description = body.description?.trim() || null;
   if (body.showToClients !== undefined) data.showToClients = !!body.showToClients;
+  if (body.isTemplate !== undefined) {
+    data.isTemplate = !!body.isTemplate;
+    // A template is never shown or usable by itself.
+    if (data.isTemplate) data.showToClients = false;
+  }
 
   const s = data.startsAt as Date | null | undefined;
   const e = data.expiresAt as Date | null | undefined;
