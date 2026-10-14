@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyProfileRequest } from "@/lib/telegramNotify";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 
@@ -31,5 +32,6 @@ export async function POST(req: Request) {
   const created = await prisma.profileRequest.create({
     data: { userId: me.id, message: text.slice(0, 2000) },
   });
+  after(() => notifyProfileRequest(created.id));
   return NextResponse.json(created, { status: 201 });
 }

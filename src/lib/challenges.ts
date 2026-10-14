@@ -62,6 +62,43 @@ function randomSuffix(n = 5) {
 }
 
 /**
+ * A personal one-time code copied from a template promo code: one use, only
+ * for this client, shown in their cabinet.
+ */
+export async function issuePersonalCode(
+  t: PromoCode & { products: { id: string }[] },
+  userId: string,
+  name: string,
+  expiresAt: Date | null
+) {
+  const base = t.code.replace(/[^A-Z0-9А-ЯІЇЄҐ]/gi, "").slice(0, 12) || "BONUS";
+  let code = "";
+  for (let i = 0; i < 5; i++) {
+    code = `${base}-${randomSuffix()}`.toUpperCase();
+    if (!(await prisma.promoCode.findUnique({ where: { code }, select: { id: true } }))) break;
+  }
+  return prisma.promoCode.create({
+    data: {
+      code,
+      name,
+      type: t.type,
+      value: t.value,
+      minTotal: t.minTotal,
+      categories: t.categories,
+      products: { connect: t.products.map((p) => ({ id: p.id })) },
+      description: t.description || null,
+      startsAt: new Date(),
+      expiresAt,
+      usageLimit: 1,
+      perClientLimit: 1,
+      isActive: true,
+      showToClients: true,
+      clients: { connect: { id: userId } },
+    },
+  });
+}
+
+/**
  * Approves an entry and issues the reward: a personal promo code copied from
  * the template (one use, only for this client, shown in their cabinet).
  */
@@ -78,34 +115,9 @@ export async function approveEntry(entryId: string, adminComment?: string | null
   const t = entry.challenge.rewardTemplate;
   let promoCodeId: string | null = null;
   if (t) {
-    const now = new Date();
     const days = entry.challenge.rewardValidDays;
-    const expiresAt = days ? new Date(now.getTime() + days * 86_400_000) : t.expiresAt;
-    const base = t.code.replace(/[^A-Z0-9А-ЯІЇЄҐ]/gi, "").slice(0, 12) || "BONUS";
-    let code = "";
-    for (let i = 0; i < 5; i++) {
-      code = `${base}-${randomSuffix()}`.toUpperCase();
-      if (!(await prisma.promoCode.findUnique({ where: { code }, select: { id: true } }))) break;
-    }
-    const promo = await prisma.promoCode.create({
-      data: {
-        code,
-        name: `${t.name || t.code} · ${entry.challenge.title}`,
-        type: t.type,
-        value: t.value,
-        minTotal: t.minTotal,
-        categories: t.categories,
-        products: { connect: t.products.map((p) => ({ id: p.id })) },
-        description: t.description || null,
-        startsAt: now,
-        expiresAt,
-        usageLimit: 1,
-        perClientLimit: 1,
-        isActive: true,
-        showToClients: true,
-        clients: { connect: { id: entry.userId } },
-      },
-    });
+    const expiresAt = days ? new Date(Date.now() + days * 86_400_000) : t.expiresAt;
+    const promo = await issuePersonalCode(t, entry.userId, `${t.name || t.code} · ${entry.challenge.title}`, expiresAt);
     promoCodeId = promo.id;
   }
   return prisma.challengeEntry.update({

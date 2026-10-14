@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyReturn } from "@/lib/telegramNotify";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { orderNumbers, returnNumbers } from "@/lib/docNumber";
@@ -118,6 +119,7 @@ export async function POST(req: Request) {
       },
     },
   });
+  after(() => notifyReturn(created.id));
   const nums = await returnNumbers([created]);
   return NextResponse.json({ ...created, number: nums.get(created.id) ?? null }, { status: 201 });
 }

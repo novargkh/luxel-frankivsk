@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { notifyKpiPhoto } from "@/lib/telegramNotify";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { activeWhere, attemptsLeft } from "@/lib/challenges";
@@ -43,5 +44,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     },
     select: { id: true, status: true, createdAt: true },
   });
+  after(() => notifyKpiPhoto(entry.id));
   return NextResponse.json(entry, { status: 201 });
 }

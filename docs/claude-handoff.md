@@ -65,6 +65,17 @@ CommerceML 2 at `/1c_exchange.php` → `src/app/api/1c-exchange/route.ts`.
   admin `/admin/products/baf`.
 - Protocol notes and curl examples: `docs/1c-exchange.md`.
 
+## Telegram admin bot
+For at most 2 people (`TELEGRAM_MAX_LINKS`). Env: `TELEGRAM_BOT_TOKEN`,
+`TELEGRAM_WEBHOOK_SECRET`. Admin page `/admin/telegram`: "Підключити бота
+до сайту" (setWebhook) and one-time links to connect a person
+(`TelegramLink`). Webhook `/api/telegram/webhook` (secret header, public in
+`src/proxy.ts`) → `src/lib/telegramBot.ts`: orders (view, confirm, ship,
+cancel), availability override, photo-KPI approve/reject, issue a personal
+promo code from a template. Notices (`src/lib/telegramNotify.ts`, sent with
+`after()`): new order, return, profile request, KPI photo, BAF exchange
+error (max one per 30 min). `TELEGRAM_API_BASE` points tests at a fake API.
+
 ## Local testing
 Needs a Postgres in `.env` `DATABASE_URL` (not committed; use a local DB or
 a Neon branch, never the production DB for experiments). Dev server on port

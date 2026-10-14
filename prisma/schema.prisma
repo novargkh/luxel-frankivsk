@@ -82,6 +82,7 @@ model User {
   profileRequests ProfileRequest[]
   clientPrices    ClientPrice[]
   challengeEntries ChallengeEntry[]
+  telegramLinks    TelegramLink[]
 }
 
 // A delivery/pickup point that belongs to a client. A client with several
@@ -505,4 +506,22 @@ model ExchangeLog {
   agent    String?
 
   @@index([at])
+}
+
+// A Telegram chat allowed to use the admin bot (src/lib/telegramBot.ts).
+// Created by an admin in /admin/telegram with a one-time code; the chat is
+// linked when that person opens the bot with /start <code>. At most
+// TELEGRAM_MAX_LINKS chats can be linked.
+model TelegramLink {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String?   @unique
+  codeUntil DateTime?
+  chatId    String?   @unique
+  tgName    String?
+  // What the bot is waiting for from this chat (search text, a reason...).
+  state     Json?
+  createdAt DateTime  @default(now())
+  linkedAt  DateTime?
 }

@@ -19,7 +19,9 @@ export default auth((req) => {
     pathname.startsWith("/api/1c-exchange") ||
     // Vercel Cron jobs: no session, checked inside the route (CRON_SECRET /
     // Vercel's cron user agent).
-    pathname.startsWith("/api/cron/");
+    pathname.startsWith("/api/cron/") ||
+    // Telegram bot webhook: checked by its secret header inside the route.
+    pathname === "/api/telegram/webhook";
 
   if (isPublic) {
     return NextResponse.next();

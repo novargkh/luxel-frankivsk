@@ -8,7 +8,7 @@
 // query params + HTTP Basic Auth, per the standard 1C/BAS exchange
 // protocol — see docs/1c-exchange.md for the full writeup, example XML,
 // and curl commands to test each mode by hand.
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { catalogComplete, catalogFile, catalogImport, catalogInit } from "@/lib/cmlCatalog";
 import {
   EXCHANGE_COOKIE_NAME,
@@ -21,6 +21,7 @@ import {
   verifySessionCookieValue,
 } from "@/lib/onecExchange";
 import { prisma } from "@/lib/prisma";
+import { notifyExchangeError } from "@/lib/telegramNotify";
 
 // Must run on the Node runtime (Prisma, crypto.timingSafeEqual) — this is
 // already the default for App Router API routes here, stated explicitly
@@ -224,16 +225,19 @@ async function finishLog(id: string | null, status: number, answer: string, note
   if (!id) return;
   try {
     const first = answer.split("\n")[0]?.trim() ?? "";
-    await prisma.exchangeLog.update({
+    const ok = status < 400 && first !== "failure";
+    const row = await prisma.exchangeLog.update({
       where: { id },
       data: {
         status,
-        ok: status < 400 && first !== "failure",
+        ok,
         answer: answer.slice(0, 500),
         detail: note.detail ?? null,
         ms,
       },
+      select: { type: true, mode: true },
     });
+    if (!ok) after(() => notifyExchangeError(id, row.type, row.mode, answer));
     // Keep the journal small: prune now and then.
     if (Date.now() - lastPrune > 10 * 60_000) {
       lastPrune = Date.now();

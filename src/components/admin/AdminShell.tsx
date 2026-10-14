@@ -8,6 +8,7 @@ import { signOut, useSession } from "next-auth/react";
 import { SyncBar } from "@/components/admin/SyncProgress";
 import {
   ArrowsClockwise,
+  TelegramLogo,
   ArrowUUpLeft,
   CalendarBlank,
   List,
@@ -61,6 +62,7 @@ const GROUPS: { title: string; items: Item[] }[] = [
       { href: "/admin/coverage", label: "Покриття", icon: MapTrifold },
       { href: "/admin/announcements", label: "Сповіщення", icon: Megaphone },
       { href: "/admin/exchange", label: "Обмін з BAF", icon: ArrowsClockwise },
+      { href: "/admin/telegram", label: "Telegram", icon: TelegramLogo },
     ],
   },
 ];
