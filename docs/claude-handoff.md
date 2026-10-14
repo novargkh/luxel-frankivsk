@@ -76,12 +76,19 @@ promo code from a template. Notices (`src/lib/telegramNotify.ts`, sent with
 `after()`): new order, return, profile request, KPI photo, BAF exchange
 error (max one per 30 min). `TELEGRAM_API_BASE` points tests at a fake API.
 
+## Sign-in protection
+`src/lib/loginGuard.ts`: failed sign-ins are stored in `LoginAttempt`; 5 per
+login or 30 per IP within 15 min block sign-in (code `too_many`). Optional
+Cloudflare Turnstile captcha when `TURNSTILE_SECRET_KEY` and
+`NEXT_PUBLIC_TURNSTILE_SITE_KEY` are set. Admins change their own email and
+password at `/admin/account` (link under the name in the sidebar).
+
 ## Local testing
 Needs a Postgres in `.env` `DATABASE_URL` (not committed; use a local DB or
 a Neon branch, never the production DB for experiments). Dev server on port
 3001 (NEXTAUTH_URL points there). Seed demo logins: admin@demo.local /
-client@demo.local, password `password123` (local only; remove demo
-accounts and the login-page hint before real clients).
+client@demo.local, password `password123` (local only; the login-page hint
+is removed; remove demo accounts before real clients).
 
 ## Open items (as of 13.10.2026)
 - Owner installs luxel-update-22 (KPI tasks + exchange journal), then

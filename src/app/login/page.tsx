@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Script from "next/script";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+
+// Cloudflare Turnstile captcha: shown only when the site key is set.
+const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
+
+type Turnstile = {
+  render: (el: HTMLElement, o: { sitekey: string; callback: (t: string) => void; "expired-callback": () => void }) => string;
+  reset: (id: string) => void;
+};
 
 export default function LoginPage() {
   const router = useRouter();
@@ -11,6 +20,20 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [captcha, setCaptcha] = useState("");
+  const [scriptReady, setScriptReady] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+  const widget = useRef<string | null>(null);
+
+  useEffect(() => {
+    const t = (window as unknown as { turnstile?: Turnstile }).turnstile;
+    if (!SITE_KEY || !scriptReady || !t || !box.current || widget.current) return;
+    widget.current = t.render(box.current, {
+      sitekey: SITE_KEY,
+      callback: setCaptcha,
+      "expired-callback": () => setCaptcha(""),
+    });
+  }, [scriptReady]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -20,13 +43,26 @@ export default function LoginPage() {
     const res = await signIn("credentials", {
       email,
       password,
+      captcha,
       redirect: false,
     });
 
     setLoading(false);
 
     if (res?.error) {
-      setError("Невірний логін або пароль. Якщо пароля ще немає, зверніться до менеджера.");
+      // A captcha token works once: get a fresh one for the next try.
+      const t = (window as unknown as { turnstile?: Turnstile }).turnstile;
+      if (t && widget.current) {
+        t.reset(widget.current);
+        setCaptcha("");
+      }
+      setError(
+        res.code === "too_many"
+          ? "Забагато невдалих спроб. Спробуйте через 15 хвилин або зверніться до менеджера."
+          : res.code === "captcha"
+            ? "Підтвердіть, що ви не робот, і спробуйте ще раз."
+            : "Невірний логін або пароль. Якщо пароля ще немає, зверніться до менеджера."
+      );
       return;
     }
 
@@ -77,6 +113,16 @@ export default function LoginPage() {
             />
           </div>
 
+          {SITE_KEY && (
+            <>
+              <Script
+                src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"
+                onReady={() => setScriptReady(true)}
+              />
+              <div ref={box} className="flex justify-center min-h-[65px]" />
+            </>
+          )}
+
           {error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
               {error}
@@ -85,16 +131,13 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (!!SITE_KEY && !captcha)}
             className="w-full bg-brand text-white rounded-lg py-2 text-sm font-medium hover:bg-brand-dark disabled:opacity-60 transition"
           >
             {loading ? "Вхід..." : "Увійти"}
           </button>
         </form>
 
-        <p className="text-xs text-slate-400 mt-6 text-center">
-          Демо-доступ: admin@demo.local / client@demo.local, пароль — password123
-        </p>
       </div>
     </div>
   );

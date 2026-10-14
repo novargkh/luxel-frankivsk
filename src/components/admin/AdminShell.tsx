@@ -144,8 +144,10 @@ function Frame({ children }: { children: React.ReactNode }) {
 
   const footer = (
     <div className="border-t border-white/10 px-4 py-4">
-      <p className="text-[13px] text-white font-medium truncate">{session?.user?.name ?? "Адміністратор"}</p>
-      <p className="text-[12px] text-slate-400 truncate">{session?.user?.email}</p>
+      <Link href="/admin/account" className="block rounded-md -mx-1 px-1 hover:bg-white/5" title="Мій акаунт: пароль і email">
+        <p className="text-[13px] text-white font-medium truncate">{session?.user?.name ?? "Адміністратор"}</p>
+        <p className="text-[12px] text-slate-400 truncate">{session?.user?.email} · змінити пароль</p>
+      </Link>
       <button
         type="button"
         onClick={() => signOut({ callbackUrl: "/login" })}

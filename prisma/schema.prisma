@@ -525,3 +525,13 @@ model TelegramLink {
   createdAt DateTime  @default(now())
   linkedAt  DateTime?
 }
+
+// Failed sign-in attempts (src/lib/loginGuard.ts): too many for one login
+// or one IP within a few minutes block further tries for a while.
+model LoginAttempt {
+  id  String   @id @default(cuid())
+  key String
+  at  DateTime @default(now())
+
+  @@index([key, at])
+}
