@@ -21,62 +21,62 @@ export async function POST(req: Request) {
   const create = (body.create ?? []).filter((c) => c.article?.trim() && c.name?.trim());
   const updatePrices = body.updatePrices !== false;
 
-  // The same article must not end up on two products: clear it elsewhere.
-  const articles = links.map((l) => l.article.trim());
   const now = new Date();
-  let linked = 0;
-  let pricesChanged = 0;
-
-  await prisma.$transaction(
-    async (tx) => {
-      await tx.product.updateMany({
-        where: { article: { in: articles }, id: { notIn: links.map((l) => l.productId) } },
-        data: { article: null },
-      });
-      const current = new Map(
-        (await tx.product.findMany({ where: { id: { in: links.map((l) => l.productId) } }, select: { id: true, price: true } })).map(
-          (p) => [p.id, p.price]
-        )
-      );
-      for (const l of links) {
-        if (!current.has(l.productId)) continue;
-        const price = typeof l.price === "number" && l.price > 0 ? Math.round(l.price * 100) / 100 : null;
-        const setPrice = updatePrices && price !== null && Math.abs(price - (current.get(l.productId) ?? 0)) >= 0.01;
-        await tx.product.update({
-          where: { id: l.productId },
-          data: {
-            article: l.article.trim(),
-            bafName: l.name.trim(),
-            unit: (l.unit || "шт").trim(),
-            bafSyncedAt: now,
-            ...(setPrice ? { price: price! } : {}),
-          },
-        });
-        linked++;
-        if (setPrice) pricesChanged++;
-      }
-    },
-    { timeout: 60_000 }
+  const current = new Map(
+    (await prisma.product.findMany({ where: { id: { in: links.map((l) => l.productId) } }, select: { id: true, price: true } })).map(
+      (p) => [p.id, p.price]
+    )
   );
-
-  let created = 0;
-  for (const c of create) {
-    const exists = await prisma.product.findFirst({ where: { article: c.article.trim() }, select: { id: true } });
-    if (exists) continue;
-    await prisma.product.create({
-      data: {
-        name: c.name.trim(),
-        bafName: c.name.trim(),
-        article: c.article.trim(),
-        unit: (c.unit || "шт").trim(),
-        price: typeof c.price === "number" && c.price > 0 ? Math.round(c.price * 100) / 100 : 0,
-        category: categorizeProduct(c.name, null, c.group || "Інше"),
-        stock: 0,
-        bafSyncedAt: now,
-      },
+  const rows = links
+    .filter((l) => current.has(l.productId))
+    .map((l) => {
+      const price = typeof l.price === "number" && l.price > 0 ? Math.round(l.price * 100) / 100 : null;
+      const setPrice = updatePrices && price !== null && Math.abs(price - (current.get(l.productId) ?? 0)) >= 0.01;
+      return { id: l.productId, article: l.article.trim(), bafName: l.name.trim(), unit: (l.unit || "шт").trim(), price: setPrice ? price : null };
     });
-    created++;
-  }
 
-  return NextResponse.json({ linked, pricesChanged, created });
+  // One statement for all rows: per-row updates (~900) outran the function
+  // time limit on a remote database and the whole save rolled back.
+  await prisma.$transaction([
+    // The same article must not end up on two products: clear it elsewhere.
+    prisma.product.updateMany({
+      where: { article: { in: rows.map((r) => r.article) }, id: { notIn: rows.map((r) => r.id) } },
+      data: { article: null },
+    }),
+    prisma.$executeRawUnsafe(
+      `UPDATE "Product" AS p SET
+         "article" = u.article, "bafName" = u.bafname, "unit" = u.unit,
+         "price" = COALESCE(u.price, p."price"), "bafSyncedAt" = $6, "updatedAt" = $6
+       FROM UNNEST($1::text[], $2::text[], $3::text[], $4::text[], $5::float8[])
+         AS u(id, article, bafname, unit, price)
+       WHERE p.id = u.id`,
+      rows.map((r) => r.id),
+      rows.map((r) => r.article),
+      rows.map((r) => r.bafName),
+      rows.map((r) => r.unit),
+      rows.map((r) => r.price),
+      now
+    ),
+  ]);
+
+  const taken = new Set(
+    (await prisma.product.findMany({ where: { article: { in: create.map((c) => c.article.trim()) } }, select: { article: true } })).map(
+      (p) => p.article
+    )
+  );
+  const fresh = create.filter((c) => !taken.has(c.article.trim()));
+  const { count: created } = await prisma.product.createMany({
+    data: fresh.map((c) => ({
+      name: c.name.trim(),
+      bafName: c.name.trim(),
+      article: c.article.trim(),
+      unit: (c.unit || "шт").trim(),
+      price: typeof c.price === "number" && c.price > 0 ? Math.round(c.price * 100) / 100 : 0,
+      category: categorizeProduct(c.name, null, c.group || "Інше"),
+      stock: 0,
+      bafSyncedAt: now,
+    })),
+  });
+
+  return NextResponse.json({ linked: rows.length, pricesChanged: rows.filter((r) => r.price !== null).length, created });
 }

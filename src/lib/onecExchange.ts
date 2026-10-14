@@ -362,7 +362,7 @@ export function buildOrdersXml(orders: OrderForExchange[]): string {
           ...(order.user.name ? { ЗначенияРеквизитов: { ЗначениеРеквизита: { Наименование: "КонтактнаОсоба", Значение: order.user.name } } } : {}),
         },
       },
-      Значения: { ЗначениеРеквизита: requisites },
+      ЗначенияРеквизитов: { ЗначениеРеквизита: requisites },
       Товары: {
         Товар: order.items.map((item) => {
           const productMatch = matchProduct(item.product);
@@ -451,8 +451,10 @@ export async function buildQueryResponse(): Promise<{ xml: string; sentCount: nu
     );
   }
 
+  // An empty body makes BAF fail with an XML read error; a document with no
+  // <Документ> is read as "nothing to load".
   if (sendable.length === 0) {
-    return { xml: "", sentCount: 0, skippedCount: invalid.length };
+    return { xml: buildOrdersXml([]), sentCount: 0, skippedCount: invalid.length };
   }
 
   await prisma.order.updateMany({

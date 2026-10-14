@@ -148,7 +148,6 @@ async function handle(req: Request, note: Note): Promise<NextResponse> {
           `[1c-exchange] mode=query: ${skippedCount} order(s) skipped (unmatchable client/product), ${sentCount} sent`
         );
       }
-      if (!body) return text(""); // nothing to send — empty body signals "done"
       return xml(body);
     } catch (e) {
       console.error("[1c-exchange] mode=query failed:", e);
