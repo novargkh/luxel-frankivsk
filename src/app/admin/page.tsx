@@ -14,6 +14,7 @@ type Summary = {
   openRequests: number;
   basErrors: number;
   baf: { waiting: number; oldestMin: number | null; lastMin: number | null };
+  manualStock: { total: number; differ: number };
   latestNew: {
     id: string;
     number: string;
@@ -79,6 +80,22 @@ export default function AdminDashboard() {
       </div>
 
       {s && <BafQueue baf={s.baf} />}
+      {s && s.manualStock.total > 0 && (
+        <Link
+          href="/admin/products"
+          className={`mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl px-4 py-3 text-sm ring-1 hover:ring-slate-400 ${s.manualStock.differ ? "bg-amber-50 ring-amber-300" : "bg-white ring-slate-200"}`}
+        >
+          <span className="font-semibold">Наявність вручну</span>
+          <span className="text-slate-600">
+            <b className="tabular">{s.manualStock.total}</b> товар(ів) з ручним статусом
+            {s.manualStock.differ > 0 && (
+              <span className="text-amber-800">
+                , у <b className="tabular">{s.manualStock.differ}</b> luxel.ua зараз показує інакше — перевірте або поверніть «Авто»
+              </span>
+            )}
+          </span>
+        </Link>
+      )}
 
       <div className="mb-4">
         <SyncCard />

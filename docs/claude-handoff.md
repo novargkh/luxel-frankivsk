@@ -49,6 +49,11 @@ filesystem (store uploads in the DB).
   (`src/lib/clientDelete.ts`): no BAF code, no order sent to BAF, typed name
   confirmation; deletes their orders and personal promo codes and tells
   the Telegram admins. Orders themselves are never deleted, only cancelled.
+- Availability: automatic from luxel.ua stock (daily cron
+  `src/lib/stockSync.ts`). An admin can set `Product.stockOverride` by hand
+  (site or bot); it stays until switched back to «Авто», syncs only refresh
+  the stock number. `src/lib/manualStock.ts` reminds: Огляд banner, Товари
+  rows, bot product card, and a morning Telegram note when luxel.ua differs.
 - Prices: `pricingFor(user)` in `src/lib/clientPrice.ts` (client's
   ClientPrice from BAF, else base price minus discount).
 - KPI tasks: `src/lib/challenges.ts` (PHOTO / ORDER_PRODUCTS / ORDER_TOTAL;
@@ -81,8 +86,9 @@ For at most 2 people (`TELEGRAM_MAX_LINKS`). Env: `TELEGRAM_BOT_TOKEN`,
 `TELEGRAM_WEBHOOK_SECRET`. Admin page `/admin/telegram`: "Підключити бота
 до сайту" (setWebhook) and one-time links to connect a person
 (`TelegramLink`). Webhook `/api/telegram/webhook` (secret header, public in
-`src/proxy.ts`) → `src/lib/telegramBot.ts`: orders (view, confirm, ship,
-cancel), availability override, photo-KPI approve/reject, issue a personal
+`src/proxy.ts`) → `src/lib/telegramBot.ts`: orders (view; only «Підтвердити»
+for NEW orders, so the client sees we got it), availability override,
+photo-KPI approve/reject, issue a personal
 promo code from a template. Notices (`src/lib/telegramNotify.ts`, sent with
 `after()`): new order, return, profile request, KPI photo, BAF exchange
 error (max one per 30 min). `TELEGRAM_API_BASE` points tests at a fake API.

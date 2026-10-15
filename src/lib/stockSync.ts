@@ -9,8 +9,9 @@ import { prisma } from "@/lib/prisma";
 //     page's quantity input, #quantityInput), which is their warehouse count
 //   - page gone (404/410) -> stock 0, status "Не знайдено"
 //   - network error / page without the markers -> left untouched, "failed"
-// Any manual status an admin set (Product.stockOverride) is cleared for
-// every product checked, so each morning starts from the system status.
+// A manual status an admin set (Product.stockOverride) is kept until the
+// admin switches it back to automatic; the stock number is still refreshed
+// so the admin can see what luxel.ua says (src/lib/manualStock.ts).
 // Prices are only compared (counted and listed for the admin), never
 // overwritten: portal prices can be set by hand.
 //
@@ -151,14 +152,7 @@ export async function runStockSync(opts: { trigger: "cron" | "admin"; budgetMs: 
 
       await prisma.product.update({
         where: { id: p.id },
-        // A fresh check also ends any manual status the admin set yesterday.
-        data: {
-          stock,
-          sourceStatus: status,
-          stockSyncedAt: new Date(),
-          stockOverride: null,
-          stockOverrideAt: null,
-        },
+        data: { stock, sourceStatus: status, stockSyncedAt: new Date() },
       });
     }
   }

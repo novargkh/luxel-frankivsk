@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { bafQueueState, maybeAlertBafQueue } from "@/lib/bafQueue";
+import { manualStockReport } from "@/lib/manualStock";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { kyivDayKey, orderNumbers } from "@/lib/docNumber";
@@ -14,7 +15,7 @@ export async function GET() {
   const today = todayKey();
   const weekFrom = addDays(today, -6);
 
-  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew, taskEntries, baf] = await Promise.all([
+  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew, taskEntries, baf, manual] = await Promise.all([
     prisma.order.count({ where: { status: "NEW" } }),
     prisma.returnRequest.count({ where: { status: "NEW" } }),
     prisma.profileRequest.count({ where: { status: "NEW" } }),
@@ -41,6 +42,7 @@ export async function GET() {
     }),
     prisma.challengeEntry.count({ where: { status: "SUBMITTED" } }),
     bafQueueState(),
+    manualStockReport(),
   ]);
   after(maybeAlertBafQueue);
 
@@ -73,6 +75,7 @@ export async function GET() {
     openRequests,
     basErrors,
     taskEntries,
+    manualStock: { total: manual.total, differ: manual.differ.length },
     baf: {
       waiting: baf.waiting,
       oldestMin: baf.oldestAt ? Math.round((Date.now() - baf.oldestAt.getTime()) / 60000) : null,

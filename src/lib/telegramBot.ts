@@ -173,11 +173,10 @@ async function onCallback(q: NonNullable<Update["callback_query"]>) {
 
 // ── orders ─────────────────────────────────────────────────────────────
 
+// The bot only confirms: the client sees that LUXEL received the order.
+// Shipping and cancelling stay in the admin panel.
 const STATUS_BUTTON: Record<string, { status: AdminOrderStatus; label: string }> = {
   C: { status: "CONFIRMED", label: "✅ Підтвердити" },
-  S: { status: "SHIPPED", label: "🚚 Відвантажено" },
-  X: { status: "CANCELLED", label: "✖️ Скасувати" },
-  N: { status: "NEW", label: "↩️ Повернути в «Нове»" },
 };
 
 async function listOrders(chatId: string, msgId?: number) {
@@ -228,10 +227,10 @@ async function orderCard(id: string) {
   ]
     .filter((l) => l !== "")
     .join("\n");
-  const buttons = Object.entries(STATUS_BUTTON)
-    .filter(([, s]) => s.status !== o.status && !(s.status === "NEW" && o.status !== "CANCELLED"))
-    .map(([k, s]) => ({ text: s.label, data: `os:${o.id}:${k}` }));
-  const kb: Keyboard = [buttons.slice(0, 2), buttons.slice(2), [{ text: "« До списку", data: "ol" }]].filter((r) => r.length);
+  const kb: Keyboard = [
+    ...(o.status === "NEW" ? [[{ text: STATUS_BUTTON.C.label, data: `os:${o.id}:C` }]] : []),
+    [{ text: "« До списку", data: "ol" }],
+  ];
   const site = process.env.NEXTAUTH_URL || process.env.AUTH_URL;
   if (site?.startsWith("https://")) kb.push([{ text: "Відкрити в адмінці", url: `${site.replace(/\/$/, "")}/admin/orders?open=${o.id}` }]);
   return { text, kb };
@@ -243,13 +242,13 @@ async function showOrder(chatId: string, id: string, msgId?: number) {
 }
 
 async function setOrderStatus(chatId: string, id: string, key: string, msgId?: number) {
-  const s = STATUS_BUTTON[key.replace("!", "")];
+  const s = STATUS_BUTTON[key];
   if (!s) return "";
-  // Cancelling asks once more.
-  if (s.status === "CANCELLED" && !key.endsWith("!")) {
-    const kb: Keyboard = [[{ text: "Так, скасувати", data: `os:${id}:X!` }, { text: "Ні", data: `o:${id}` }]];
-    if (msgId) await editText(chatId, msgId, "Скасувати це замовлення? Клієнт побачить статус «Скасоване».", kb);
-    return "";
+  // Only a new order can be confirmed (pressing an old button twice is harmless).
+  const o = await prisma.order.findUnique({ where: { id }, select: { status: true } });
+  if (o?.status !== "NEW") {
+    await showOrder(chatId, id, msgId);
+    return "Замовлення вже оброблене";
   }
   // Like the admin editor: a changed order goes to BAF again.
   await prisma.order.update({ where: { id }, data: { status: s.status, basStatus: "NEW", basError: null } });
@@ -298,8 +297,8 @@ async function productCard(id: string) {
   const text = [
     `<b>${esc(p.name)}</b>`,
     p.article ? `Артикул: ${esc(p.article)}` : "",
-    `Зараз клієнти бачать: ${DOT[now]} <b>${AVAILABILITY_LABEL[now]}</b>${p.stockOverride ? " (вручну, до завтрашньої автоперевірки)" : ""}`,
-    `Автоматично: ${AVAILABILITY_LABEL[auto]} (залишок ${p.stock} шт)`,
+    `Зараз клієнти бачать: ${DOT[now]} <b>${AVAILABILITY_LABEL[now]}</b>${p.stockOverride ? " — <b>вручну</b>, діє, доки не повернете «Авто»" : ""}`,
+    `За luxel.ua: ${AVAILABILITY_LABEL[auto]} (залишок ${p.stock} шт)${p.stockOverride && auto !== p.stockOverride ? " ⚠️ відрізняється" : ""}`,
   ]
     .filter(Boolean)
     .join("\n");
@@ -309,7 +308,7 @@ async function productCard(id: string) {
       { text: "🟡 Мало", data: `pa:${p.id}:low` },
       { text: "🔴 Немає", data: `pa:${p.id}:out` },
     ],
-    ...(p.stockOverride ? [[{ text: "↩️ Як автоматично", data: `pa:${p.id}:auto` }]] : []),
+    ...(p.stockOverride ? [[{ text: "↩️ Авто (за luxel.ua)", data: `pa:${p.id}:auto` }]] : []),
   ];
   return { text, kb };
 }
@@ -326,7 +325,7 @@ async function setAvailability(chatId: string, id: string, v: string, msgId?: nu
     data: { stockOverride: override, stockOverrideAt: override ? new Date() : null },
   });
   await showProduct(chatId, id, msgId);
-  return override ? `Встановлено: ${AVAILABILITY_LABEL[override]}` : "Повернуто автоматичний статус";
+  return override ? `Встановлено вручну: ${AVAILABILITY_LABEL[override]}` : "Повернуто «Авто» — статус за luxel.ua";
 }
 
 // ── photo KPI ──────────────────────────────────────────────────────────

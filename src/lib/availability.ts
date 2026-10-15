@@ -4,8 +4,8 @@
 // The automatic status comes from the stock number (refreshed daily from
 // luxel.ua, see src/lib/stockSync.ts): out at 0, "low" below one shipping
 // box (or ≤ LOW_STOCK when the box size is unknown). An admin can override
-// it for the day (Product.stockOverride); the next daily check clears the
-// override and everything starts from the system status again.
+// it (Product.stockOverride); the override stays until the admin switches it
+// back to automatic, and daily checks only refresh the stock number.
 
 export type Availability = "in" | "low" | "out";
 

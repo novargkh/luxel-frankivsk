@@ -791,8 +791,12 @@ export default function AdminProductsPage() {
               Тільки змінені вручну
             </label>
             <span className="text-xs text-slate-500">
-              Змінено вручну сьогодні: {products.filter((p) => p.stockOverride).length}. Щоранку о ~08:00
-              статуси знову беруться з luxel.ua.
+              Вручну: {products.filter((p) => p.stockOverride).length}
+              {(() => {
+                const n = products.filter((p) => p.stockOverride && p.stockOverride !== p.availabilityAuto).length;
+                return n ? <b className="text-amber-700">, з них {n} не збігаються з luxel.ua</b> : null;
+              })()}
+              . Ручний статус діє, доки ви не оберете «Авто».
             </span>
           </div>
         )}
@@ -868,15 +872,20 @@ export default function AdminProductsPage() {
                         <option value="low">{AVAILABILITY_LABEL.low}</option>
                         <option value="out">{AVAILABILITY_LABEL.out}</option>
                       </select>
-                      {p.stockOverride && p.stockOverrideAt && (
+                      {p.stockOverride && (
                         <div className="mt-0.5 text-[11px] text-amber-700">
-                          вручну о{" "}
-                          {new Date(p.stockOverrideAt).toLocaleTimeString("uk-UA", {
-                            timeZone: "Europe/Kyiv",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                          , до ранкової перевірки
+                          вручну
+                          {p.stockOverrideAt &&
+                            ` з ${new Date(p.stockOverrideAt).toLocaleString("uk-UA", {
+                              timeZone: "Europe/Kyiv",
+                              day: "2-digit",
+                              month: "2-digit",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}`}
+                          {p.availabilityAuto && p.availabilityAuto !== p.stockOverride && (
+                            <b> · luxel.ua: {AVAILABILITY_LABEL[p.availabilityAuto]}</b>
+                          )}
                         </div>
                       )}
                     </td>
