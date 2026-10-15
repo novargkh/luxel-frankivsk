@@ -44,6 +44,11 @@ filesystem (store uploads in the DB).
   Orders list/calendar/editor, clients (cabinet passwords viewable,
   AES-GCM in `User.passwordEnc`, `src/lib/clientAccount.ts`), products,
   promo codes, KPI tasks, routes, coverage, announcements.
+- Clients come only from BAF (Excel import by BAF code; several rows with
+  one code add several delivery shops). Only test clients can be deleted
+  (`src/lib/clientDelete.ts`): no BAF code, no order sent to BAF, typed name
+  confirmation; deletes their orders and personal promo codes and tells
+  the Telegram admins. Orders themselves are never deleted, only cancelled.
 - Prices: `pricingFor(user)` in `src/lib/clientPrice.ts` (client's
   ClientPrice from BAF, else base price minus discount).
 - KPI tasks: `src/lib/challenges.ts` (PHOTO / ORDER_PRODUCTS / ORDER_TOTAL;

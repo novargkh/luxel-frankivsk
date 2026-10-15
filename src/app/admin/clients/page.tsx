@@ -38,7 +38,7 @@ type ChangeRequest = {
   user: { id: string; name: string; company: string | null; phone: string | null };
 };
 
-type ImportResult = { accounts?: number; total: number; created: number; updated: number; skipped: string[]; notes: string[] };
+type ImportResult = { accounts?: number; total: number; created: number; updated: number; shopsAdded?: number; skipped: string[]; notes: string[] };
 
 const emptyForm = { company: "", name: "", phone: "", email: "", basId: "", taxCode: "" };
 
@@ -309,6 +309,7 @@ export default function AdminClientsPage() {
               Рядків у файлі: {importResult.total}. Нових клієнтів: {importResult.created}, оновлено:{" "}
               {importResult.updated}
               {importResult.skipped.length > 0 && `, пропущено: ${importResult.skipped.length}`}.
+              {!!importResult.shopsAdded && ` Додано адрес доставки: ${importResult.shopsAdded}.`}
               {!!importResult.accounts && ` Створено кабінетів з паролями: ${importResult.accounts}.`}
             </p>
             {[...importResult.skipped, ...importResult.notes].length > 0 && (

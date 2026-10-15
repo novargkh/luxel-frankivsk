@@ -23,6 +23,12 @@ type Row = {
   discount?: string;
 };
 
+// "м. Київ, вул. Хрещатик, 22" and "м.Київ вул.Хрещатик 22" are one address.
+const sameAddress = (a: string, b: string) => {
+  const k = (x: string) => x.toLowerCase().replace(/[^a-zа-яіїєґ0-9]+/gi, "");
+  return k(a) === k(b);
+};
+
 const s = (v: unknown) => {
   const t = String(v ?? "").replace(/\s+/g, " ").trim();
   return t || null;
@@ -37,7 +43,7 @@ export async function POST(req: Request) {
   if (rows.length === 0) return NextResponse.json({ error: "Файл порожній" }, { status: 400 });
 
   const users = await prisma.user.findMany({
-    select: { id: true, basId: true, taxCode: true, email: true, phone: true, role: true, _count: { select: { shops: true } } },
+    select: { id: true, basId: true, taxCode: true, email: true, phone: true, role: true, shops: { select: { address: true } } },
   });
   const byCode = new Map(users.filter((u) => u.basId).map((u) => [u.basId!, u]));
   const byTax = new Map(users.filter((u) => u.taxCode).map((u) => [u.taxCode!, u]));
@@ -50,6 +56,7 @@ export async function POST(req: Request) {
 
   let created = 0;
   let updated = 0;
+  let shopsAdded = 0;
   const skipped: string[] = [];
   const notes: string[] = [];
 
@@ -102,8 +109,11 @@ export async function POST(req: Request) {
 
     if (existing) {
       await prisma.user.update({ where: { id: existing.id }, data });
-      if (address && existing._count.shops === 0) {
+      // Several rows with one BAF code = one client with several shops.
+      if (address && !existing.shops.some((sh) => sameAddress(sh.address, address))) {
         await prisma.shop.create({ data: { userId: existing.id, name: company, address } });
+        existing.shops.push({ address });
+        shopsAdded++;
       }
       updated++;
     } else {
@@ -115,7 +125,7 @@ export async function POST(req: Request) {
         },
         select: { id: true },
       });
-      const rec = { id: u.id, basId: code, taxCode, email, phone, role: "CLIENT" as const, _count: { shops: address ? 1 : 0 } };
+      const rec = { id: u.id, basId: code, taxCode, email, phone, role: "CLIENT" as const, shops: address ? [{ address }] : [] };
       if (code) byCode.set(code, rec);
       if (taxCode) byTax.set(taxCode, rec);
       created++;
@@ -127,5 +137,5 @@ export async function POST(req: Request) {
   // Every client that can log in gets a cabinet with a password right away;
   // the admin sees the passwords in the client cards and the CSV list.
   const accounts = await ensureClientAccounts();
-  return NextResponse.json({ total: rows.length, created, updated, skipped, accounts, notes: notes.slice(0, 50) });
+  return NextResponse.json({ total: rows.length, created, updated, shopsAdded, skipped, accounts, notes: notes.slice(0, 50) });
 }

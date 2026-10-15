@@ -7,6 +7,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import Navbar from "@/components/Navbar";
 import ClientPriceList from "@/components/admin/ClientPriceList";
+import DeleteTestClient from "@/components/admin/DeleteTestClient";
 
 const MapPicker = dynamic(() => import("@/components/MapPicker"), {
   ssr: false,
@@ -26,6 +27,7 @@ type Profile = {
   taxCode?: string | null;
   basId?: string | null;
   isActive?: boolean;
+  deleteBlocker?: string | null;
   discountPercent?: number;
   passwordIssuedAt?: string | null;
   password?: string | null;
@@ -693,6 +695,10 @@ function ProfileInner() {
               </ul>
             )}
           </section>
+        )}
+
+        {adminMode && clientId && profile && (
+          <DeleteTestClient clientId={clientId} label={(profile.company || profile.name || "").trim()} blocker={profile.deleteBlocker ?? null} />
         )}
       </main>
     </div>
