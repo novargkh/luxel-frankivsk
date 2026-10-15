@@ -535,3 +535,11 @@ model LoginAttempt {
 
   @@index([key, at])
 }
+
+// Small named values the app keeps between requests (e.g. when the last
+// "orders wait for BAF" notice was sent).
+model AppState {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}

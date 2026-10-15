@@ -1,5 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { notifyNewOrder } from "@/lib/telegramNotify";
+import { maybeAlertBafQueue } from "@/lib/bafQueue";
 import { availabilityOf } from "@/lib/availability";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -178,7 +179,10 @@ export async function POST(req: Request) {
 
   // Order tasks ("Замовте товари…", "Замовлення від …"): never block the order.
   await checkOrderChallenges(order.id).catch((e) => console.error("[tasks] order check failed", e));
-  after(() => notifyNewOrder(order.id));
+  after(async () => {
+    await notifyNewOrder(order.id);
+    await maybeAlertBafQueue();
+  });
 
   const numbers = await orderNumbers([order]);
   return NextResponse.json({ ...order, number: numbers.get(order.id) ?? null }, { status: 201 });

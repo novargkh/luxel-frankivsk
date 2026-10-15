@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { bafQueueState, maybeAlertBafQueue } from "@/lib/bafQueue";
 import { prisma } from "@/lib/prisma";
 import { sessionUser } from "@/lib/adminGuard";
 import { kyivDayKey, orderNumbers } from "@/lib/docNumber";
@@ -13,7 +14,7 @@ export async function GET() {
   const today = todayKey();
   const weekFrom = addDays(today, -6);
 
-  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew, taskEntries] = await Promise.all([
+  const [newOrders, newReturns, openRequests, basErrors, recent, latestNew, taskEntries, baf] = await Promise.all([
     prisma.order.count({ where: { status: "NEW" } }),
     prisma.returnRequest.count({ where: { status: "NEW" } }),
     prisma.profileRequest.count({ where: { status: "NEW" } }),
@@ -39,7 +40,9 @@ export async function GET() {
       },
     }),
     prisma.challengeEntry.count({ where: { status: "SUBMITTED" } }),
+    bafQueueState(),
   ]);
+  after(maybeAlertBafQueue);
 
   // Last 7 days, oldest first, cancelled orders left out of the sums.
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekFrom, i));
@@ -70,6 +73,11 @@ export async function GET() {
     openRequests,
     basErrors,
     taskEntries,
+    baf: {
+      waiting: baf.waiting,
+      oldestMin: baf.oldestAt ? Math.round((Date.now() - baf.oldestAt.getTime()) / 60000) : null,
+      lastMin: baf.lastExchangeAt ? Math.round((Date.now() - baf.lastExchangeAt.getTime()) / 60000) : null,
+    },
     latestNew: latestNew.map((o) => ({
       id: o.id,
       number: numbers.get(o.id) ?? String(o.orderNumber),

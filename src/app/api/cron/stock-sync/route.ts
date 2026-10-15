@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runStockSync } from "@/lib/stockSync";
+import { maybeAlertBafQueue } from "@/lib/bafQueue";
 
 // Daily stock check, called by Vercel Cron (see vercel.json).
 // If CRON_SECRET is set in Vercel, Vercel sends it as a Bearer token and we
@@ -18,6 +19,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
+  await maybeAlertBafQueue();
   const run = await runStockSync({ trigger: "cron", budgetMs: 270_000 });
   return NextResponse.json(run);
 }

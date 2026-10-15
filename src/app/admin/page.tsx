@@ -13,6 +13,7 @@ type Summary = {
   newReturns: number;
   openRequests: number;
   basErrors: number;
+  baf: { waiting: number; oldestMin: number | null; lastMin: number | null };
   latestNew: {
     id: string;
     number: string;
@@ -77,6 +78,8 @@ export default function AdminDashboard() {
         )}
       </div>
 
+      {s && <BafQueue baf={s.baf} />}
+
       <div className="mb-4">
         <SyncCard />
       </div>
@@ -137,5 +140,38 @@ export default function AdminDashboard() {
         </section>
       </div>
     </main>
+  );
+}
+
+function ago(m: number | null) {
+  if (m === null) return "ще не було";
+  if (m < 60) return `${m} хв тому`;
+  const h = Math.round(m / 60);
+  return h < 48 ? `${h} год тому` : `${Math.round(h / 24)} дн тому`;
+}
+
+// BAF lives on an office computer: orders wait on the site until it is on.
+function BafQueue({ baf }: { baf: Summary["baf"] }) {
+  const late = baf.waiting > 0 && (baf.oldestMin ?? 0) >= 240;
+  return (
+    <Link
+      href="/admin/exchange"
+      className={`mb-4 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-white px-4 py-3 text-sm ring-1 hover:ring-slate-400 ${late ? "ring-amber-300 bg-amber-50" : "ring-slate-200"}`}
+    >
+      <span className="font-semibold">Обмін з BAF</span>
+      <span className="text-slate-600">
+        останній обмін: <b className="tabular">{ago(baf.lastMin)}</b>
+      </span>
+      <span className={late ? "text-amber-800" : "text-slate-600"}>
+        {baf.waiting ? (
+          <>
+            чекають BAF: <b className="tabular">{baf.waiting} замовл.</b>, найстаріше {ago(baf.oldestMin)}
+            {late && " — увімкніть комп'ютер з BAF"}
+          </>
+        ) : (
+          "усі замовлення передані"
+        )}
+      </span>
+    </Link>
   );
 }

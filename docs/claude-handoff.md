@@ -64,6 +64,12 @@ CommerceML 2 at `/1c_exchange.php` → `src/app/api/1c-exchange/route.ts`.
 - Article matching from the BAF nomenclature xls: `src/lib/bafMatch.ts`,
   admin `/admin/products/baf`.
 - Protocol notes and curl examples: `docs/1c-exchange.md`.
+- BAF runs on an office PC that is often off: orders queue on the site
+  (basStatus NEW) until BAF connects. `src/lib/bafQueue.ts` shows the queue
+  on the admin overview and sends a Telegram reminder when orders wait and
+  BAF was unseen for `BAF_WAIT_ALERT_HOURS` (default 4), at most once per
+  that period, 07–21 Kyiv. Checked on new orders, admin overview, bot use
+  and the daily cron (no hourly cron on the Vercel Hobby plan).
 
 ## Telegram admin bot
 For at most 2 people (`TELEGRAM_MAX_LINKS`). Env: `TELEGRAM_BOT_TOKEN`,

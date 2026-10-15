@@ -1,5 +1,6 @@
 import crypto from "crypto";
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
+import { maybeAlertBafQueue } from "@/lib/bafQueue";
 import { handleUpdate, type Update } from "@/lib/telegramBot";
 
 export const runtime = "nodejs";
@@ -23,5 +24,6 @@ export async function POST(req: Request) {
       console.error("[telegram] update failed:", e);
     }
   }
+  after(maybeAlertBafQueue);
   return NextResponse.json({ ok: true });
 }
